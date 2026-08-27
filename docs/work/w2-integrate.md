@@ -155,9 +155,29 @@ WK3 的 `draftToBeat()` 手工拼一个 `Beat` 字面量，恒补齐 3 格。这
 | `npm test` | **207 passed / 9 files** |
 | `npm run build` | 通过 |
 
-测试分布：`beats` 34、`locks` 24、`prompt`（领域）16、`projects` 12、`transitions` 16、`assemble`（适配层）43、`draft` 17、`BeatBoard` 33、`App` 12。
+与两条来源分支逐文件对账（各分支在自己的 checkout 上跑 `npm test` 实测）：
 
-WK2 与 WK3 的红线测试全部保留：WK2 的 `locks.test.ts`（24 条反向解锁断言）与 `prompt.test.ts`（AC-6.4 自动化断言）**逐字未改**；WK3 的 `BeatBoard.test.tsx` 33 条 UI 红线除 4.1 / 4.2 两处语义裁决外全部保留原断言。
+| 测试文件 | WK2 | WK3 | 本分支 |
+| --- | ---: | ---: | ---: |
+| `domain/beats.test.ts` | 27 | 25 | **34** |
+| `domain/locks.test.ts` | 24 | — | **24** |
+| `domain/prompt.test.ts` | 16 | — | **16** |
+| `domain/projects.test.ts` | 12 | 3 | **12** |
+| `domain/transitions.test.ts` | 8 | 9 | **16** |
+| `prompt/assemble.test.ts` | — | 29 | **43** |
+| `editor/draft.test.ts` | — | 11 | **17** |
+| `editor/BeatBoard.test.tsx` | — | 32 | **33** |
+| `App.test.tsx` | 12 | 12 | **12** |
+| 合计 | 99 | 121 | **207** |
+
+每个文件的用例数都 ≥ 两条来源分支的较大者，没有一处净减少。
+
+红线测试的保全情况：
+
+- WK2 的 `locks.test.ts`（24 条反向解锁断言）、`prompt.test.ts`（AC-6.4 自动化断言）、`projects.test.ts` **逐字节未改**。
+- WK3 的 `BeatBoard.test.tsx` 33 条 UI 红线，只有 4.1 / 4.2 两处语义裁决对应的断言改了期望值（canon 时间位、时长进文本），其余原样保留；另新增「改时长不会移动 canon 时间位」。
+- WK3 的 `assemble.test.ts` 从 29 条增到 43 条，新增的主要是「面板全文与领域 `assemblePrompt` 逐字符相同」的 5 板逐一断言。
+- `.github/workflows/ci.yml`、`apps/web/package.json`、`apps/web/vite.config.ts` 相对 WK1 基线均**未改动**，CI 仍是 `npm ci → typecheck → test → build` 四步。
 
 ---
 
