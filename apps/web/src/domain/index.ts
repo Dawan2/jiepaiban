@@ -12,4 +12,5 @@
 export * from './beats';
 export * from './prompt';
 export * from './projects';
+export * from './templates';
 export * from './transitions';
