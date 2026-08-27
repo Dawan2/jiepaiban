@@ -1,0 +1,72 @@
+{
+  "$comment": "禁用词法源：docs/methodology/glossary.md（METH-002 §8）与 PRD-001 §1.3 废弃项表。改动本文件等于改产品红线，需要先改法源文档。",
+  "terms": [
+    {
+      "term": "分镜",
+      "en": "shot breakdown",
+      "why": "与节拍板互斥；粒度小于 beat 的叙事单元在本产品中不存在",
+      "use": "节拍板 BeatBoard / 节拍帧"
+    },
+    {
+      "term": "故事板",
+      "en": "storyboard",
+      "why": "与节拍板互斥",
+      "use": "节拍板 BeatBoard"
+    },
+    {
+      "term": "单镜头时长",
+      "en": "per-shot duration",
+      "why": "组内时长微观分配归 AI，人只给板时长",
+      "use": "板时长（≤ 30s）"
+    },
+    {
+      "term": "单镜时长",
+      "en": "per-shot duration",
+      "why": "同上，METH-002 §8 的表述形式",
+      "use": "板时长（≤ 30s）"
+    }
+  ],
+  "include": ["apps", "docs", "scripts", "README.md", ".github"],
+  "excludeDirs": ["node_modules", "dist", "coverage", ".git", ".vite"],
+  "excludeFiles": ["scripts/forbidden-terms.json", "scripts/forbidden-terms.test.mjs"],
+  "extensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".css",
+    ".html",
+    ".json",
+    ".md",
+    ".yml",
+    ".yaml"
+  ],
+  "exceptions": [
+    {
+      "path": "docs/**",
+      "reason": "方法论与 PRD 需要原文引用禁用词表本身；文档是法源，不是产品文案"
+    },
+    {
+      "path": "README.md",
+      "reason": "红线说明需要点名禁用词"
+    },
+    {
+      "path": "apps/web/src/App.test.tsx",
+      "reason": "AC-6.8 守卫测试：必须写出禁用词才能断言全站 UI 文案不含它"
+    },
+    {
+      "path": "apps/web/src/domain/prompt.test.ts",
+      "reason": "AC-6.4 守卫测试：断言生成请求体里没有镜头级结构"
+    },
+    {
+      "path": "apps/web/src/domain/locks.test.ts",
+      "reason": "结构锁守卫测试：断言领域层不导出镜头级概念"
+    },
+    {
+      "path": "apps/web/src/editor/BeatBoard.test.tsx",
+      "reason": "AC-6.8 守卫测试：必须写出禁用词才能断言节拍板与宫格上找不到镜头级字段"
+    }
+  ]
+}

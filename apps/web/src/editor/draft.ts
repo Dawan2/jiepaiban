@@ -198,6 +198,21 @@ export function draftToBeat(draft: BeatDraft): Beat {
   return beat;
 }
 
+/**
+ * 把编辑态整体回落成项目，供生成前置校验（`generate/`）读到最新填写。
+ *
+ * `beat_list` 依旧以不可写属性定义、数组依旧冻结——回落一圈不会松掉五节拍锁。
+ */
+export function projectWithDrafts(project: Project, drafts: readonly BeatDraft[]): Project {
+  const { beat_list: _ignored, ...rest } = project;
+  const next = { ...rest } as Project;
+  Object.defineProperty(next, 'beat_list', {
+    value: Object.freeze(drafts.map(draftToBeat)),
+    enumerable: true,
+  });
+  return next;
+}
+
 /** 该拍参考图键，按格序；无图的格不占位。 */
 export function referenceImageKeys(draft: BeatDraft): readonly string[] {
   return draft.frames

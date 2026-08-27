@@ -9,8 +9,10 @@
     "dev": "npm run dev --workspace @jiepaiban/web",
     "build": "npm run build --workspace @jiepaiban/web",
     "preview": "npm run preview --workspace @jiepaiban/web",
-    "test": "npm run test --workspace @jiepaiban/web",
+    "test": "npm run test:terms && npm run test --workspace @jiepaiban/web",
     "test:watch": "npm run test:watch --workspace @jiepaiban/web",
+    "test:terms": "node --test scripts/forbidden-terms.test.mjs",
+    "lint:terms": "node scripts/scan-forbidden-terms.mjs",
     "typecheck": "npm run typecheck --workspace @jiepaiban/web"
   }
 }

@@ -16,5 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # 术语合规（NFR-7）：产品源码里出现禁用词即挂 CI。
+      - run: npm run lint:terms
       - run: npm test
       - run: npm run build
