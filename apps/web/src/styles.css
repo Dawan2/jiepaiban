@@ -480,3 +480,58 @@ body {
 .empty {
   color: var(--text-dim);
 }
+
+/* ── 生成动作（W2 生成引擎） ─────────────────────────────────────── */
+
+.generate {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.generate__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.generate__badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.generate__badge--running {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.generate__badge--succeeded {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.generate__badge--failed {
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.generate__reason {
+  margin: 8px 0 0;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.generate__result {
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  word-break: break-all;
+}

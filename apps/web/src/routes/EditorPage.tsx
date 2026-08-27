@@ -1,10 +1,13 @@
 /**
  * 节拍编辑页（路由 `/p/:id`，PRD 5.2）。
  *
- * 本槽位（W1/WK1）只落地页面骨架：左侧固定 5 项节拍导航 + 中部编辑区占位 + 右侧 Prompt 面板占位。
- * 宫格编辑、字段自动保存与 Prompt 实时组装由后续槽位（WK3）实现，此处不做。
+ * 页面骨架（W1/WK1）：左侧固定 5 项节拍导航 + 中部编辑区 + 右侧 Prompt 面板占位。
+ * 宫格编辑、字段自动保存与 Prompt 实时组装由 WK3 落地，此处不做。
  *
- * 红线：节拍数量固定 5、无分镜入口、衔接字段绝不进入 Prompt（AC-6.1 / 6.4 / 6.8）。
+ * W2 在骨架上接了生成动作：板级「生成本板」与顶栏「生成全集」都走
+ * `generate/` 的控制器，UI 只渲染控制器给出的状态文案与禁用原因。
+ *
+ * 红线：节拍数量固定 5、没有镜头级页面或入口、衔接字段绝不进入 Prompt（AC-6.1 / 6.4 / 6.8）。
  */
 
 import { useState } from 'react';
@@ -13,18 +16,38 @@ import { AppLayout } from '../components/AppLayout';
 import { BeatNav } from '../components/BeatNav';
 import { findDemoProject } from '../data/demoProjects';
 import { BEAT_COUNT, MAX_BEAT_DURATION_SEC, beatDef, type BeatIndex } from '../domain/beats';
+import {
+  BeatGenerateAction,
+  GenerateEpisodeButton,
+  pickBoardState,
+} from '../generate/GenerateActions';
+import { useGenerateController } from '../generate/useGenerateController';
+import type { Project } from '../domain/projects';
 import { ProjectMissing } from './ProjectMissing';
 
 export function EditorPage() {
   const { id = '' } = useParams<{ id: string }>();
   const project = findDemoProject(id);
-  const [activeIndex, setActiveIndex] = useState<BeatIndex>(1);
 
   if (project === undefined) {
     return <ProjectMissing id={id} />;
   }
 
+  return <EditorView project={project} />;
+}
+
+/**
+ * 真正的编辑视图。
+ *
+ * 拆成两个组件是为了让「项目不存在」的兜底走在任何 Hook 之前——
+ * 生成控制器与项目 1:1，必须在确定项目存在之后再建。
+ */
+function EditorView({ project }: { readonly project: Project }) {
+  const [activeIndex, setActiveIndex] = useState<BeatIndex>(1);
+  const { controller, states } = useGenerateController(project);
+
   const beat = project.beat_list.find((item) => item.index === activeIndex);
+  const boardState = pickBoardState(states, activeIndex);
 
   return (
     <AppLayout
@@ -45,9 +68,7 @@ export function EditorPage() {
       }
       actions={
         <>
-          <button type="button" className="btn" disabled>
-            生成全集
-          </button>
+          <GenerateEpisodeButton controller={controller} states={states} />
           <Link to={`/p/${project.id}/export`} className="btn btn--primary">
             成片
           </Link>
@@ -89,6 +110,9 @@ export function EditorPage() {
             <p className="panel__todo">
               宫格填写与字段编辑在 WK3 落地。宫格只写白话画面描述，不含景别 / 机位 / 运镜等专业字段。
             </p>
+            {boardState !== undefined && (
+              <BeatGenerateAction controller={controller} state={boardState} />
+            )}
           </section>
 
           <aside className="panel panel--prompt" aria-labelledby="prompt-title">
