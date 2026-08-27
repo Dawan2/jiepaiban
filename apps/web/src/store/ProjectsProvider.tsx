@@ -62,6 +62,13 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * 默认时钟必须是模块级常量：写成默认参数里的内联箭头函数，每次渲染都是新身份，
+ * 会让下面的 `repository` / `refresh` 跟着重建，`refresh` 的 effect 于是反复触发，
+ * 形成"读库 → setState → 重渲染 → 又读库"的死循环（生产环境不传这些 prop，正好踩中）。
+ */
+const defaultNow = (): string => new Date().toISOString();
+
 interface ProjectsProviderProps {
   children: ReactNode;
   /** 测试注入内存仓储；生产走 IndexedDB → localStorage 兜底。 */
@@ -73,7 +80,7 @@ interface ProjectsProviderProps {
 export function ProjectsProvider({
   children,
   repository: injected,
-  now = () => new Date().toISOString(),
+  now = defaultNow,
   newId = randomProjectId,
 }: ProjectsProviderProps) {
   const repository = useMemo(() => injected ?? createLocalRepository(now), [injected, now]);
@@ -178,7 +185,10 @@ export interface ProjectResource {
 }
 
 export function useProject(id: string): ProjectResource {
-  const { load } = useProjects();
+  // 直接依赖 repository（身份稳定），而不是上下文里的 load：
+  // 后者每次列表刷新都换身份，会让本 hook 重新进入 loading 态，
+  // 从而在每次保存后把整个编辑区卸载重建（输入框失焦、光标丢失）。
+  const { repository } = useProjects();
   const [project, setProject] = useState<StoredProject | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -194,7 +204,7 @@ export function useProject(id: string): ProjectResource {
   const reload = useCallback(async () => {
     setState('loading');
     try {
-      const found = await load(id);
+      const found = await repository.load(id);
       if (!alive.current) {
         return;
       }
@@ -208,7 +218,7 @@ export function useProject(id: string): ProjectResource {
       setState('error');
       setError(message(cause));
     }
-  }, [id, load]);
+  }, [id, repository]);
 
   useEffect(() => {
     void reload();

@@ -132,12 +132,24 @@ WK1 那条"节拍字段集合与 PRD 5.2.2 一致"的断言因此仍然成立。
 - 写盘失败停在 `保存失败` 态，改动仍留在内存，下次输入或手动保存会重试。
 - 保存态常驻顶部栏：`已保存 / 未保存 / 保存中… / 保存失败`。
 
-开发中修掉两处真实缺陷，均已补回归测试：
+开发中修掉四处真实缺陷，均已补回归测试（其中两条做过变异验证：把修复回退后测试确实转红）：
 
 1. 草稿同步发生在 effect 里，页面首帧可能"已显示内容但草稿仍为 null"，
    此时用户的第一次输入会被静默丢弃。改为 `update()` 在草稿缺失时以仓储读到的项目为基准。
 2. 每次保存后仓储会重读并产出新对象，原先的重置 effect 跟着对象身份走，
    会把正在输入的改动回滚。改为只在**项目 id 变化**时重置草稿。
+3. **`ProjectsProvider` 读库死循环**：`now` 的默认值原本写成默认参数里的内联箭头函数，
+   每次渲染都是新身份，`repository` / `refresh` 随之重建，`refresh` 的 effect 反复触发，
+   形成"读库 → setState → 重渲染 → 又读库"的死循环。默认时钟已改为模块级常量。
+   注意这条**单测全绿也照样存在**：测试一直显式注入 `repository` 与 `now`，
+   恰好绕开了生产入口（`main.tsx` 不传任何 prop）的用法，只有真实浏览器暴露出来
+   （编辑区被无限卸载重建，输入框根本打不上字）。已补一条"不传任何 prop"的用例钉死。
+4. **保存后编辑区重建**：`useProject` 原先依赖上下文里的 `load`，
+   而该函数每次列表刷新都换身份，于是每次保存都把 `useProject` 打回 loading 态、
+   整片卸载重建（输入框失焦、光标丢失）。改为依赖身份稳定的 `repository`。
+
+第 3 条是本槽位最值得记的一课：**纯单测无法覆盖"生产入口怎么用这个组件"**。
+新增依赖注入型 Provider 时，请务必留一条"按生产方式（不传可选 prop）渲染"的用例。
 
 ## 8. 明确不在本槽位范围内
 
@@ -182,7 +194,7 @@ editor.update((current) => ({
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit，无错误
-npm test            # Vitest：9 个文件 / 131 条测试全部通过
+npm test            # Vitest：10 个文件 / 134 条测试全部通过
 npm run build       # 生产构建通过
 ```
 
@@ -193,8 +205,24 @@ npm run build       # 生产构建通过
 | `store/projectFactory.test.ts`（19） | 五节拍锁、无第 6 块板、改序拒绝、宫格锁、基准表时长、复用清空与继承 |
 | `adapters/persistence/localRepository.test.ts`（40） | 同一批断言跑在三种驱动上：CRUD、列表投影、归档、导入导出往返、merge/replace、违规拒绝、转场泄漏拦截、封套版本与迁移 |
 | `adapters/persistence/locks.test.ts`（5） | 帧序锁归一、帧槽位缺失、分镜字段黑名单逐项 |
-| `store/useProjectEditor.test.tsx`（11） | 防抖、手动保存、卸载 flush、失败重试、两处缺陷的回归 |
+| `store/useProjectEditor.test.tsx`（11） | 防抖、手动保存、卸载 flush、失败重试、缺陷 1 / 2 的回归 |
+| `store/ProjectsProvider.test.tsx`（3） | 上下文稳定性：不传 prop 时不死循环、列表刷新不重读项目（缺陷 3 / 4 的回归） |
 | `routes/ProjectsPage.test.tsx`（15） | 空态、新建落 5 板、复用、归档、删除二次确认、导入导出 |
 | `routes/EditorPage.test.tsx`（7） | 从仓储读出、B5 两宫格、失焦保存、手动保存、保存态、落盘后锁完好 |
-| `App.test.tsx`（12） | WK1 原有的骨架 / 路由 / 红线断言，改为向内存仓储播种 |
+| `App.test.tsx`（13） | WK1 原有的骨架 / 路由 / 红线断言，改为向内存仓储播种 |
 | `domain/*.test.ts`（21） | WK1 原有断言，未改动 |
+
+### 真实浏览器验证
+
+`fake-indexeddb` 只能证明驱动逻辑，证明不了真实 IndexedDB 的事务与 keyPath 行为，
+因此额外在 Chrome（Playwright 驱动）上跑了一遍端到端，确认：
+
+- 空库空态 → 新建 → 直接读 IndexedDB 核对：`beatboard` 库含 `projects` / `meta` 两个 store，
+  项目恰 5 块板、宫格 `[3,3,3,3,2]`、时长 `[8,17,20,25,18]`、衔接为基准表五项。
+- 刷新页面后项目仍在（真持久化，不是内存态）。
+- 编辑页改备注 → 保存态 `未保存 → 已保存` → 刷新后内容仍在（防抖自动保存真的落了盘）。
+- B5 显示"2 宫格"。
+- 复用产物 5 块板、宫格数保留、全部节拍帧为空、`reusedFromId` 指向来源。
+- 删除无视频项目直接生效。
+
+缺陷 3 / 4 就是这一步发现的。
