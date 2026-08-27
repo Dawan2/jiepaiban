@@ -48,14 +48,19 @@ export function PromptPreview({ result, redlineError }: PromptPreviewProps) {
         <h2 id="prompt-title" className="panel__title">
           Prompt 预览
         </h2>
-        <span className={`status${ready ? ' status--ok' : ' status--wait'}`}>
+        {/*
+          就绪 / 待补全是编辑过程中唯一会自己变化的判定结论，用 status 播报出来，
+          键盘用户不必反复 Tab 回来确认。全文本身不播报：每敲一个字都念一遍是噪音。
+        */}
+        <span className={`status${ready ? ' status--ok' : ' status--wait'}`} role="status">
           {ready ? '就绪' : '待补全'}
         </span>
       </div>
 
       <p className="prompt__wysiwyg">面板所见 = 请求所发，逐字符一致。</p>
 
-      <div className="prompt__body" aria-label="Prompt 全文">
+      {/* 光有 aria-label 的 div 不进无障碍树；给它一个 group 角色才能被读到名字。 */}
+      <div className="prompt__body" role="group" aria-label="Prompt 全文">
         {result.segments.length === 0 ? (
           <p className="prompt__empty">填写字段后在此实时组装。</p>
         ) : (

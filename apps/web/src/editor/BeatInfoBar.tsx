@@ -7,6 +7,11 @@
  *   - 时间位：canon 规格（METH-003 §1），只读，改时长也不会移动它；
  *   - 本拍时长：可编辑，既进 Prompt 文本也作请求参数（METH-003 §2 / PRD 5.3.2）；
  *   - 画幅、参考图：项目级 / 格级参数位。
+ *
+ * 无障碍（W4-A11Y）：只读字段用 `<span>` 而非 `<output>` 承载。`<output>` 的隐含角色是
+ * `status`，自带 `aria-live="polite"`——切板时四个只读值会各自抢播一遍，把「切到了哪一板」
+ * 这条真正重要的信息淹掉。它们只是规格展示，不是运算结果。每个字段自身成组并由标签命名，
+ * 「板名 / 开篇钩子」这对关系因此是程序可读的，而不只是视觉上的上下相邻。
  */
 
 import { EMOTION_PRESETS, MAX_BEAT_DURATION_SEC } from '../domain/beats';
@@ -23,6 +28,10 @@ interface BeatInfoBarProps {
 
 const toneSelectId = 'beat-tone';
 const durationInputId = 'beat-duration';
+const nameId = 'beat-name-label';
+const timeId = 'beat-time-label';
+const aspectId = 'beat-aspect-label';
+const referenceId = 'beat-reference-label';
 
 export function BeatInfoBar({
   draft,
@@ -33,12 +42,12 @@ export function BeatInfoBar({
 }: BeatInfoBarProps) {
   return (
     <section className="infobar" aria-label="节拍信息条">
-      <div className="infobar__field infobar__field--locked">
-        <span className="infobar__label">
+      <div className="infobar__field infobar__field--locked" role="group" aria-labelledby={nameId}>
+        <span className="infobar__label" id={nameId}>
           板名
           <span className="tag tag--locked">锁定</span>
         </span>
-        <output className="infobar__value infobar__value--name">{draft.title}</output>
+        <span className="infobar__value infobar__value--name">{draft.title}</span>
         <span className="infobar__hint">规格用词，不可改，不进 Prompt</span>
       </div>
 
@@ -63,14 +72,14 @@ export function BeatInfoBar({
         <span className="infobar__hint">单选，展开为整句描写后入 Prompt</span>
       </div>
 
-      <div className="infobar__field infobar__field--locked">
-        <span className="infobar__label">
+      <div className="infobar__field infobar__field--locked" role="group" aria-labelledby={timeId}>
+        <span className="infobar__label" id={timeId}>
           时间位
           <span className="tag tag--locked">锁定</span>
         </span>
-        <output className="infobar__value infobar__value--num">
+        <span className="infobar__value infobar__value--num">
           {draft.time_start}–{draft.time_end}s
-        </output>
+        </span>
         <span className="infobar__hint">整集时间轴上的规格位置，只读</span>
       </div>
 
@@ -100,23 +109,31 @@ export function BeatInfoBar({
         </span>
       </div>
 
-      <div className="infobar__field infobar__field--param infobar__field--locked">
-        <span className="infobar__label">
+      <div
+        className="infobar__field infobar__field--param infobar__field--locked"
+        role="group"
+        aria-labelledby={aspectId}
+      >
+        <span className="infobar__label" id={aspectId}>
           画幅
           <span className="tag tag--param">参数位</span>
         </span>
-        <output className="infobar__value infobar__value--num">{aspectRatio}</output>
+        <span className="infobar__value infobar__value--num">{aspectRatio}</span>
         <span className="infobar__hint">项目级设定，5 拍一致</span>
       </div>
 
-      <div className="infobar__field infobar__field--param infobar__field--locked">
-        <span className="infobar__label">
+      <div
+        className="infobar__field infobar__field--param infobar__field--locked"
+        role="group"
+        aria-labelledby={referenceId}
+      >
+        <span className="infobar__label" id={referenceId}>
           参考图
           <span className="tag tag--param">参数位</span>
         </span>
-        <output className="infobar__value infobar__value--num">
+        <span className="infobar__value infobar__value--num">
           {referenceImageCount} / {draft.frame_count}
-        </output>
+        </span>
         <span className="infobar__hint">按格序随请求发送，不入文本</span>
       </div>
     </section>

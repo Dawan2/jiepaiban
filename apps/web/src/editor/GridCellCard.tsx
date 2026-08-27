@@ -44,6 +44,13 @@ export function GridCellCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const descriptionId = `cell-desc-b${beatIndex}-c${frame.order}`;
+  const headingId = `cell-head-b${beatIndex}-c${frame.order}`;
+  /**
+   * 一板里有 2–3 个同构的格，可见标签一律是「画面描述」。只靠可见标签，
+   * 屏幕阅读器读出来的是三个一模一样的名字，用户无从分辨自己在填第几格。
+   * 因此控件名一律带格序，用术语表标准词「节拍帧」（glossary §1）而非口语的「格」。
+   */
+  const frameName = `节拍帧${frame.order}`;
 
   const accept = (file: File | null) => {
     if (file !== null) {
@@ -58,8 +65,8 @@ export function GridCellCard({
   };
 
   return (
-    <li className="cell">
-      <div className="cell__head">
+    <li className="cell" aria-labelledby={headingId}>
+      <div className="cell__head" id={headingId}>
         <span className="cell__ordinal">格 {frame.order}</span>
         <span className="cell__role">{roleHint}</span>
       </div>
@@ -79,6 +86,7 @@ export function GridCellCard({
           <button
             type="button"
             className="dropzone__trigger"
+            aria-label={`为${frameName}选择参考图`}
             onClick={() => inputRef.current?.click()}
           >
             <span className="dropzone__icon" aria-hidden="true">
@@ -98,19 +106,24 @@ export function GridCellCard({
               type="button"
               className="dropzone__clear"
               onClick={() => onImageChange(null)}
-              aria-label={`移除格 ${frame.order} 的参考图`}
+              aria-label={`移除${frameName}的参考图`}
             >
               移除参考图
             </button>
           </div>
         )}
 
+        {/*
+          视觉隐藏的 file input 若留在 Tab 序里，14 个格就是 14 个"看不见的焦点站"，
+          而且和上面那颗按钮触发同一件事。这里把它降为纯机制，键盘入口只留可见按钮。
+        */}
         <input
           ref={inputRef}
           className="visually-hidden"
           type="file"
           accept="image/*"
-          aria-label={`格 ${frame.order} 参考图`}
+          tabIndex={-1}
+          aria-label={`${frameName} 参考图`}
           onChange={(event) => accept(firstImage(event.target.files))}
         />
       </div>
@@ -123,6 +136,8 @@ export function GridCellCard({
         id={descriptionId}
         className="input input--area"
         rows={4}
+        // 可见标签「画面描述」是无障碍名的子串，满足 WCAG 2.5.3（Label in Name）。
+        aria-label={`${frameName} 画面描述`}
         placeholder="这一格里发生什么、看到什么"
         value={frame.text}
         onChange={(event) => onTextChange(event.target.value)}

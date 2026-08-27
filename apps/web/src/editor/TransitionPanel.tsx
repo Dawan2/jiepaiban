@@ -5,6 +5,10 @@
  * 红线：衔接只在后期合成阶段生效，**不参与 AI 生成**——
  * 它既不出现在 Prompt 面板里，也不进入生成请求体。这不是靠这里少拼一段实现的，
  * 而是组装器的输入类型里根本没有衔接字段（见 `src/prompt/assemble.ts`）。
+ *
+ * 无障碍（W4-A11Y）：本模块以 `<aside>` 呈现为 complementary 地标。这不是排版选择，
+ * 而是上面那条红线的听觉版本——衔接是后期合成的旁支信息，与「这一板要生成什么」
+ * 不在同一条主线上。屏幕阅读器的地标列表因此把它和 Prompt 预览一样列在主内容之外。
  */
 
 import {
@@ -33,7 +37,7 @@ export function TransitionPanel({
   const seam = seamOf(draft.index);
 
   return (
-    <section className="panel transition" aria-labelledby="transition-title">
+    <aside className="panel transition" aria-labelledby="transition-title">
       <div className="panel__head">
         <h2 id="transition-title" className="panel__title">
           组间衔接
@@ -95,6 +99,6 @@ export function TransitionPanel({
           </p>
         </>
       )}
-    </section>
+    </aside>
   );
 }

@@ -3,7 +3,10 @@
  * 所有页面必须通过本组件渲染，不另开平行中枢（无剧本工作台、无镜头级清单页、无剪辑时间线）。
  */
 
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+
+/** 跳转链接的落点；`<main>` 带 tabIndex={-1} 才能接住焦点。 */
+export const MAIN_CONTENT_ID = 'main-content';
 
 interface AppLayoutProps {
   /** 顶部栏标题 */
@@ -18,8 +21,25 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ title, subtitle, actions, nav, children }: AppLayoutProps) {
+  /**
+   * 光靠 `href="#id"` 在部分浏览器里只滚动、不移焦点，跳过去之后按 Tab 又回到导航。
+   * 显式 focus 一次，跳转链接才真的省下那几十次 Tab。
+   */
+  const skipToMain = (event: MouseEvent<HTMLAnchorElement>) => {
+    const main = document.getElementById(MAIN_CONTENT_ID);
+    if (main !== null) {
+      event.preventDefault();
+      main.focus();
+    }
+  };
+
   return (
     <div className="layout">
+      {/* Tab 序第一站：编辑页在主区之前有顶部栏 + 5 项左导航，绕过它们是刚需。 */}
+      <a className="skiplink" href={`#${MAIN_CONTENT_ID}`} onClick={skipToMain}>
+        跳到主内容
+      </a>
+
       <header className="layout__topbar">
         <div className="layout__brand">
           <span className="layout__logo" aria-hidden="true">
@@ -38,7 +58,9 @@ export function AppLayout({ title, subtitle, actions, nav, children }: AppLayout
         {nav}
       </nav>
 
-      <main className="layout__main">{children}</main>
+      <main id={MAIN_CONTENT_ID} className="layout__main" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }
