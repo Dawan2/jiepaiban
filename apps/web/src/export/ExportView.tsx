@@ -4,7 +4,7 @@
  * 结构自上而下：
  * 1. 顶栏动作：顺序连播（桩件阶段不可播）、全部下载、一键拼接（V1.1 置灰）；
  * 2. 固定 5 张段卡，顺序恒为节拍序；
- * 3. 底部三块：拼接计划、组间衔接总表、项目导出与交付包。
+ * 3. 底部四块：拼接计划、组间衔接总表、项目导出与交付包、飞书文档导出。
  *
  * 页面只做展示 / 下载 / 重投三件事（R7 不做剪辑器）：没有轨道、没有裁剪、
  * 没有比板更细的粒度，也不新增任何跨段编辑能力。
@@ -21,6 +21,8 @@ import { BEAT_COUNT, type BeatIndex } from '../domain/beats';
 import type { Project } from '../domain/projects';
 import { useGenerateController } from '../generate/useGenerateController';
 import type { UseGenerateControllerOptions } from '../generate/useGenerateController';
+import { FeishuExportPanel } from '../share/FeishuExportPanel';
+import type { ClipboardWriter } from '../share/clipboard';
 import { DeliveryPanel } from './DeliveryPanel';
 import { createBrowserDownloader, type FileDownloader } from './download';
 import './export.css';
@@ -44,11 +46,19 @@ export interface ExportViewProps {
   readonly controllerOptions?: UseGenerateControllerOptions;
   /** 注入下载实现，默认走浏览器 Blob 下载。 */
   readonly downloadFile?: FileDownloader;
+  /** 注入剪贴板实现（飞书导出用），默认走 `navigator.clipboard`。 */
+  readonly copyToClipboard?: ClipboardWriter;
   /** 注入导出时间戳，默认取当前时刻。 */
   readonly now?: () => string;
 }
 
-export function ExportView({ project, controllerOptions, downloadFile, now }: ExportViewProps) {
+export function ExportView({
+  project,
+  controllerOptions,
+  downloadFile,
+  copyToClipboard,
+  now,
+}: ExportViewProps) {
   const { controller, states } = useGenerateController(project, controllerOptions ?? {});
   const [lastExport, setLastExport] = useState<string | null>(null);
 
@@ -135,6 +145,13 @@ export function ExportView({ project, controllerOptions, downloadFile, now }: Ex
           onExportManifest={() =>
             exportFile(buildDeliveryManifestFile(project, cards, { now: timestamp() }))
           }
+        />
+        <FeishuExportPanel
+          project={project}
+          cards={cards}
+          now={timestamp}
+          downloadFile={download}
+          {...(copyToClipboard === undefined ? {} : { copyToClipboard })}
         />
         {lastExport !== null && (
           <p className="export-bottom__toast" role="status">

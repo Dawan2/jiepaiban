@@ -273,6 +273,52 @@ describe('底部：拼接计划 / 衔接总表 / 交付导出', () => {
   });
 });
 
+describe('底部：飞书文档导出（W4）', () => {
+  it('面板在页面上，复制拿到的就是飞书 Markdown 全文', async () => {
+    const copied: string[] = [];
+    const fixture = await createGeneratedEpisode();
+
+    render(
+      <MemoryRouter initialEntries={[`/p/${fixture.project.id}/export`]}>
+        <ExportView
+          project={fixture.project}
+          controllerOptions={{ queue: fixture.queue }}
+          downloadFile={() => {}}
+          copyToClipboard={(text) => {
+            copied.push(text);
+            return Promise.resolve();
+          }}
+          now={() => NOW}
+        />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: '复制飞书 Markdown' }));
+
+    expect(copied).toHaveLength(1);
+    expect(copied[0]).toContain(`# ${fixture.project.name} · 节拍板导出`);
+    expect(copied[0]).toContain('## 组间衔接总表（后期合成）');
+  });
+
+  it('下载飞书 Markdown 走同一个下载实现，文件名以 .md 结尾', async () => {
+    const { downloads } = await renderExport();
+
+    await userEvent.click(screen.getByRole('button', { name: '下载 Markdown' }));
+
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]?.file_name).toBe('婚宴反转_节拍板_飞书.md');
+    expect(downloads[0]?.mime).toContain('text/markdown');
+  });
+
+  it('缺片不阻断飞书导出（档案与评审随时可做）', async () => {
+    await renderExport([1, 2, 3]);
+
+    expect(screen.getByRole('button', { name: '复制飞书 Markdown' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '下载 Markdown' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '下载飞书 JSON' })).toBeEnabled();
+  });
+});
+
 describe('版本纪律：一键拼接留位（PRD 5.5.5）', () => {
   it('按钮置灰并标注 V1.1', async () => {
     await renderExport();
