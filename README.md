@@ -8,6 +8,7 @@ Seedance2.5 专属的 AI 短剧节拍板工业化生产工具 —— **填五张
 
 - Wave 1 前端脚手架 —— [`docs/work/w1-wk1-scaffold.md`](docs/work/w1-wk1-scaffold.md)
 - Wave 2 本地持久化（替换演示数据）—— [`docs/work/w2-local-store.md`](docs/work/w2-local-store.md)
+- Wave 4 节拍帧参考图持久化 —— [`docs/work/w4-image-store.md`](docs/work/w4-image-store.md)
 
 ## 技术栈
 
@@ -22,8 +23,10 @@ apps/web/            前端应用（npm workspace: @jiepaiban/web）
   src/App.tsx        路由表（/ · /p/:id · /p/:id/export）
   src/components/    AppLayout（左导航 + 顶部栏 + 主区，PRD 锁定）、BeatNav、MainNav、NewProjectForm
   src/domain/        产品规则与类型（五节拍、宫格、项目）
-  src/adapters/      persistence/：本地仓储、存储驱动、结构锁、版本化封套与迁移
-  src/store/         应用编排：项目铸造（新建 / 复用）、上下文命令、保存引擎
+  src/adapters/      indexeddb/：单库 beatboard 的唯一打开点与 store 清单
+                     persistence/：本地仓储、存储驱动、结构锁、版本化封套与迁移
+                     images/：节拍帧参考图仓（字节存 IndexedDB、准入校验、帧位坐标）
+  src/store/         应用编排：项目铸造（新建 / 复用）、上下文命令、保存引擎、帧图 hook
   src/routes/        三个页面
   src/testing/       测试脚手架（内存仓储播种）
 docs/work/           各工作槽位的落地记录
