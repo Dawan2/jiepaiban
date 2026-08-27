@@ -24,7 +24,7 @@
 | 基线 Base | `main` @ `09e11fd` |
 | 勘察对象 Surveyed | `cursor/w3-integrate-store-gen-c1f5` @ `8ffe44ff36e421235989d646323f6b4a9ac3c86b` |
 | 架构文档提交 SHA | `4076c5166771d8b3042d7ee54479c8a338a76d05` |
-| 回执提交 SHA | 本提交（见 §「提交链」） |
+| 回执提交 SHA | `e9a1f099476b426d24033957fc25535b288bbc66` |
 | 状态 | **已完成（docs-only，无 PR，仅 commit + push）** |
 
 **基线选择说明**：本槽位基于 `main` 而非 `8ffe44f`。理由是路径互斥——
@@ -140,10 +140,16 @@
 
 ### 提交链（Commit Chain）
 
-| 提交 | 内容 |
-| --- | --- |
-| `4076c5166771d8b3042d7ee54479c8a338a76d05` | `architecture-delta.md` + `ready-queue.md` + `risks.md` |
-| 本提交 | `docs/cycle2/DISPATCH.md`（W6 回执） |
+| # | 提交 | 内容 |
+| --- | --- | --- |
+| 1 | `4076c5166771d8b3042d7ee54479c8a338a76d05` | `architecture-delta.md` + `ready-queue.md` + `risks.md` |
+| 2 | `e9a1f099476b426d24033957fc25535b288bbc66` | `docs/cycle2/DISPATCH.md`（W6 回执） |
+| 3 | `0f3a0ec` | 标注两条待 M2/M3 合并后才解析的文档链接 |
+| 4 | 本提交 | 回填本回执的提交链 SHA |
+
+自检：四个交付文件内的相对链接已逐条核验——除上表第 3 条标注的两个
+（`../work/w3-template-library.md`、`../work/w4-a11y.md`，随 M2 / M3 到位）之外，
+其余均可在 `8ffe44f` 上解析。四个文件的禁用词扫描 0 命中。
 
 ### 下一步
 
