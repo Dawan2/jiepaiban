@@ -18,6 +18,7 @@
 | 基线 Base | `main` @ `09e11fd` |
 | PRD 提交 SHA | `369180a`（五份 PRD 文档） |
 | 引用修正 SHA | `642d583` |
+| 回执提交 SHA | `592899e9fb0471f648deeb7d2e176a2f8f46ce50` |
 | 上游 P1 方法论 | `cursor/wave1-p1-methodology-canon-94f3` @ `b2d57b607aa377bf4af36e03626253d97b6f83b5`（**未改动，仅引用**） |
 | 状态 | **已完成（docs-only，无 PR，仅 commit + push）** |
 
