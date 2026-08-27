@@ -41,45 +41,82 @@ export interface TransitionEntry {
   readonly note: string;
   /** 操作要点，给做后期合成的人读。 */
   readonly hint: string;
+  /** 授予该取值的法源条目。 */
+  readonly canon_source: string;
+  /**
+   * 该取值尚未被封闭枚举的法源（METH-002 §5）收录。
+   *
+   * 为 `true` 表示：目录里有它、方法论的枚举表还没有它。此类取值**照常可用**
+   * （下游需求已经在用），但必须留痕待批，不能让差异悄悄沉进代码。
+   */
+  readonly pending_canon: boolean;
+  /** 待批原因；`pending_canon` 为 `false` 时恒为 null。 */
+  readonly pending_canon_reason: string | null;
 }
 
-/** 封闭目录，共 6 项；顺序即 UI 呈现顺序。 */
+/**
+ * 封闭目录，共 6 项；顺序即 UI 呈现顺序。
+ *
+ * 其中 5 项直接来自 METH-002 §5 的枚举表；`纯硬切`（`HARD_CUT`）是第 6 项，
+ * 由 METH-003 §1/§8 的 B3 → B4 衔接点要求，但 METH-002 §5 的枚举表尚未收录，
+ * 因此标记 `pending_canon: true`——见 {@link PENDING_CANON_TRANSITIONS}。
+ */
 export const TRANSITION_CATALOG: readonly TransitionEntry[] = Object.freeze([
   Object.freeze({
     code: 'AUDIO_PRELAP',
     rule: '音频预接',
     note: '下一段音频提前进入',
     hint: '下一段的声音提前 0.3–0.5 秒进入，画面还没切',
+    canon_source: 'METH-002 §5',
+    pending_canon: false,
+    pending_canon_reason: null,
   }),
   Object.freeze({
     code: 'SCREW_SMOOTH',
     rule: '螺口顺滑过渡',
     note: '画面元素咬合式顺滑过渡',
     hint: '前后画面找同构元素咬合，位置与运动方向对齐',
+    canon_source: 'METH-002 §5',
+    pending_canon: false,
+    pending_canon_reason: null,
   }),
   Object.freeze({
     code: 'BEAT_SYNC_CUT',
     rule: '卡点硬切',
     note: '踩音乐点硬切',
     hint: '踩在音乐重音上硬切，前后各留 1 帧余量',
+    canon_source: 'METH-002 §5',
+    pending_canon: false,
+    pending_canon_reason: null,
   }),
   Object.freeze({
     code: 'BGM_PITCH_CUT',
     rule: 'BGM升调截断',
     note: '升调推情绪并截断',
     hint: 'BGM 升调把情绪推上去，到顶点直接截断',
+    canon_source: 'METH-002 §5',
+    pending_canon: false,
+    pending_canon_reason: null,
   }),
   Object.freeze({
     code: 'BLACK_CUT_HOOK',
     rule: '黑屏断钩子',
     note: '黑屏截断留悬念',
     hint: '黑场 2–4 帧截断，悬念留在黑屏之后',
+    canon_source: 'METH-002 §5',
+    pending_canon: false,
+    pending_canon_reason: null,
   }),
   Object.freeze({
     code: 'HARD_CUT',
     rule: '纯硬切',
     note: '无修饰直切，不做音画预接',
     hint: '不做任何修饰，画面与声音同时切换',
+    canon_source: 'METH-003 §1 / §8（B3 → B4）',
+    pending_canon: true,
+    pending_canon_reason:
+      'METH-003 §1/§8 把 B3 → B4 定为「纯硬切」，但 METH-002 §5 的封闭枚举只列了 5 项、不含此值；' +
+      '待 METH-002 §5 补录后把 pending_canon 改回 false。',
   }),
 ] as const satisfies readonly TransitionEntry[]);
 
@@ -88,11 +125,32 @@ export const TRANSITION_RULES: readonly TransitionRule[] = Object.freeze(
   TRANSITION_CATALOG.map((entry) => entry.rule),
 );
 
+/** 已被 METH-002 §5 枚举表收录的取值。 */
+export const CANON_TRANSITION_RULES: readonly TransitionRule[] = Object.freeze(
+  TRANSITION_CATALOG.filter((entry) => !entry.pending_canon).map((entry) => entry.rule),
+);
+
+/**
+ * 目录里有、METH-002 §5 枚举表还没有的取值——**待批清单**。
+ *
+ * 这份清单存在的意义是「差异必须可见」：下游（模板库、UI 下拉、导出）可以照常使用，
+ * 但任何人读目录都能立刻看到哪几项还欠一次法源修订。清空它的唯一正当方式是补法源，
+ * 而不是把取值从目录里删掉。
+ */
+export const PENDING_CANON_TRANSITIONS: readonly TransitionEntry[] = Object.freeze(
+  TRANSITION_CATALOG.filter((entry) => entry.pending_canon),
+);
+
 /** 衔接只在后期合成阶段生效，不属于生成阶段。 */
 export const TRANSITION_STAGE = '后期合成' as const;
 
 export function isTransitionRule(value: unknown): value is TransitionRule {
   return typeof value === 'string' && TRANSITION_RULES.includes(value as TransitionRule);
+}
+
+/** 该取值是否还欠一次 METH-002 §5 的法源修订。 */
+export function isPendingCanonTransition(rule: TransitionRule): boolean {
+  return transitionEntry(rule).pending_canon;
 }
 
 export function transitionEntry(rule: TransitionRule): TransitionEntry {

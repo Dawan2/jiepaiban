@@ -9,12 +9,15 @@ import { describe, expect, it } from 'vitest';
 import { BEAT_COUNT, BEAT_DEFS, BEAT_INDEXES } from './beats';
 import {
   CANON_TRANSITION_BY_BEAT_INDEX,
+  CANON_TRANSITION_RULES,
+  PENDING_CANON_TRANSITIONS,
   TRANSITION_CATALOG,
   TRANSITION_RULES,
   TRANSITION_SEAM_COUNT,
   TRANSITION_STAGE,
   canonTransitionFor,
   hasTransitionSeam,
+  isPendingCanonTransition,
   isTransitionRule,
   seamOf,
   transitionEntry,
@@ -57,10 +60,11 @@ describe('衔接目录是封闭枚举', () => {
     expect(TRANSITION_RULES).toHaveLength(6);
   });
 
-  it('每项都有说明文案，以及给剪辑读的操作要点', () => {
+  it('每项都有说明文案、给剪辑读的操作要点，以及法源出处', () => {
     TRANSITION_CATALOG.forEach((entry) => {
       expect(entry.note.trim()).not.toBe('');
       expect(entry.hint.trim()).not.toBe('');
+      expect(entry.canon_source.trim()).not.toBe('');
     });
   });
 
@@ -73,6 +77,66 @@ describe('衔接目录是封闭枚举', () => {
     expect(
       moduleExports.filter((name) => /^(add|register|create|remove|delete)/i.test(name)),
     ).toEqual([]);
+  });
+});
+
+describe('待批取值（pending_canon）', () => {
+  it('METH-002 §5 收录 5 项，目录第 6 项「纯硬切」标记为待批', () => {
+    expect(CANON_TRANSITION_RULES).toEqual([
+      '音频预接',
+      '螺口顺滑过渡',
+      '卡点硬切',
+      'BGM升调截断',
+      '黑屏断钩子',
+    ]);
+    expect(CANON_TRANSITION_RULES).toHaveLength(5);
+    expect(PENDING_CANON_TRANSITIONS.map((entry) => entry.rule)).toEqual(['纯硬切']);
+    expect(isPendingCanonTransition('纯硬切')).toBe(true);
+  });
+
+  it('待批项与已收录项合起来正好是整个目录，不重不漏', () => {
+    expect([...CANON_TRANSITION_RULES, ...PENDING_CANON_TRANSITIONS.map((e) => e.rule)].sort()).toEqual(
+      [...TRANSITION_RULES].sort(),
+    );
+    expect(CANON_TRANSITION_RULES.length + PENDING_CANON_TRANSITIONS.length).toBe(
+      TRANSITION_CATALOG.length,
+    );
+  });
+
+  it('已收录项一律不标待批，法源指向 METH-002 §5', () => {
+    CANON_TRANSITION_RULES.forEach((rule) => {
+      const entry = transitionEntry(rule);
+      expect(entry.pending_canon).toBe(false);
+      expect(entry.pending_canon_reason).toBeNull();
+      expect(entry.canon_source).toBe('METH-002 §5');
+      expect(isPendingCanonTransition(rule)).toBe(false);
+    });
+  });
+
+  it('待批项必须写明原因与需求出处，不能只挂一个空标记', () => {
+    PENDING_CANON_TRANSITIONS.forEach((entry) => {
+      expect(entry.pending_canon).toBe(true);
+      expect(entry.pending_canon_reason).not.toBeNull();
+      expect(entry.pending_canon_reason ?? '').toContain('METH-002 §5');
+      expect(entry.canon_source).toContain('METH-003');
+    });
+  });
+
+  it('待批不等于不可用：「纯硬切」照常是合法取值，且被 B3 使用', () => {
+    expect(isTransitionRule('纯硬切')).toBe(true);
+    expect(TRANSITION_RULES).toContain('纯硬切');
+    expect(transitionEntry('纯硬切').code).toBe('HARD_CUT');
+  });
+
+  it('目录项被冻结，待批标记不能被就地抹掉', () => {
+    const [pending] = PENDING_CANON_TRANSITIONS;
+    expect(pending).toBeDefined();
+    expect(Object.isFrozen(PENDING_CANON_TRANSITIONS)).toBe(true);
+    expect(Object.isFrozen(CANON_TRANSITION_RULES)).toBe(true);
+    expect(() => {
+      (pending as unknown as { pending_canon: boolean }).pending_canon = false;
+    }).toThrow(TypeError);
+    expect(transitionEntry('纯硬切').pending_canon).toBe(true);
   });
 });
 
