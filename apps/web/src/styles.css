@@ -24,6 +24,8 @@
   --src-project: #6fa2cf;
   --src-beat: #6cb08a;
   --src-frame: #cb9557;
+  /* 焦点环专用色：对 --bg / --bg-elev / --bg-elev-2 的对比度均 > 3:1（WCAG 1.4.11）。 */
+  --focus: #7fb2e0;
   --radius: 2px;
   --mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -62,6 +64,55 @@ body {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ── 焦点可见性（WCAG 2.4.7 / 1.4.11） ─────────────────────────── */
+
+/*
+ * 密排的深色作业界面里，靠 hover 态的那点背景差是看不出焦点的。
+ * 统一一道 2px 亮环，:focus-visible 保证鼠标点击不留痕。
+ */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* 1px 的隐藏控件画不出环；焦点环由它的可视容器代画（见 .template / .dropzone）。 */
+.visually-hidden:focus-visible {
+  outline: none;
+}
+
+/* 跳转链接的落点是整块主区，外扩的环会顶到边界外，改画在内侧。 */
+.layout__main:focus-visible {
+  outline-offset: -2px;
+}
+
+/*
+ * Tab 序第一站。平时收在视口外，拿到焦点才落下来——
+ * 不用 .visually-hidden，因为它需要"被看见"这件事本身。
+ */
+.skiplink {
+  position: fixed;
+  top: 0;
+  left: 12px;
+  z-index: 100;
+  padding: 8px 14px;
+  background: var(--accent);
+  border: 1px solid var(--focus);
+  border-radius: 0 0 var(--radius) var(--radius);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-110%);
+}
+
+.skiplink:focus-visible {
+  transform: translateY(0);
 }
 
 /* ── 全站骨架：顶部栏 + 左导航 + 主区（PRD 锁定） ───────────────── */
@@ -505,8 +556,7 @@ body {
 }
 
 .input:focus-visible {
-  outline: none;
-  border-color: var(--accent);
+  border-color: var(--focus);
 }
 
 .input--select {
@@ -797,6 +847,12 @@ body {
   background: var(--bg-elev-2);
 }
 
+/* 投放区 overflow: hidden 会裁掉外扩的焦点环，这两颗按钮改画在内侧。 */
+.dropzone__trigger:focus-visible,
+.dropzone__clear:focus-visible {
+  outline-offset: -2px;
+}
+
 .dropzone__icon {
   font-size: 18px;
   color: var(--text-faint);
@@ -913,6 +969,12 @@ body {
 
 .template:hover {
   background: var(--bg-elev-2);
+}
+
+/* 单选钮本体是视觉隐藏的，焦点环得由这张卡片代画，否则键盘选衔接手法是盲选。 */
+.template:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .template--on {

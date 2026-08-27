@@ -129,7 +129,7 @@ describe('画面宫格：格数由板位锁定（AC-6.3）', () => {
     gridCells().forEach((cell, i) => {
       const order = i + 1;
       expect(within(cell).getAllByRole('textbox')).toHaveLength(1);
-      expect(within(cell).getByLabelText(`格 ${order} 参考图`)).toHaveAttribute('type', 'file');
+      expect(within(cell).getByLabelText(`节拍帧${order} 参考图`)).toHaveAttribute('type', 'file');
     });
   });
 
@@ -234,7 +234,7 @@ describe('信息条：情绪可改、时间位派生、参数位不入文本', (
 describe('组间衔接：模板齐备，且不参与 AI 生成（AC-6.4）', () => {
   it('B1–B4 提供 6 个衔接模板，并明示不参与 AI 生成', async () => {
     await selectBeat(1);
-    const panel = screen.getByRole('region', { name: '组间衔接' });
+    const panel = screen.getByRole('complementary', { name: '组间衔接' });
 
     expect(within(panel).getByText('不参与 AI 生成')).toBeInTheDocument();
     expect(TRANSITION_CATALOG).toHaveLength(6);
@@ -270,7 +270,7 @@ describe('组间衔接：模板齐备，且不参与 AI 生成（AC-6.4）', () 
 
   it('B5 没有接缝，不提供衔接模板', async () => {
     await selectBeat(5);
-    const panel = screen.getByRole('region', { name: '组间衔接' });
+    const panel = screen.getByRole('complementary', { name: '组间衔接' });
 
     expect(within(panel).queryAllByRole('radio')).toHaveLength(0);
     expect(within(panel).getByText(/本集不设衔接/)).toBeInTheDocument();
