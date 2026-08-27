@@ -34,7 +34,14 @@ describe('五节拍结构（AC-6.1）', () => {
   it('5 个节拍按 1–5 顺序预填名称与叙事定位', () => {
     const beats = createDefaultBeats();
     expect(beats.map((beat) => beat.index)).toEqual([1, 2, 3, 4, 5]);
-    expect(beats.map((beat) => beat.name)).toEqual(['钩子', '冲突', '升级', '反转/高潮', '悬念钩子']);
+    // 板名取方法论 METH-003 §1 的标准板名，为规格用词。
+    expect(beats.map((beat) => beat.name)).toEqual([
+      '开篇钩子',
+      '矛盾建立',
+      '打压升级',
+      '反转蓄力',
+      '断集留客',
+    ]);
     expect(beats.every((beat) => beat.role.trim() !== '')).toBe(true);
     expect(BEAT_PRESETS).toHaveLength(BEAT_COUNT);
   });
