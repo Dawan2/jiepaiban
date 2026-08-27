@@ -1,0 +1,62 @@
+/* 飞书导出面板样式（W4/FEISHU-EXPORT）。
+   独立文件由 share/FeishuExportPanel.tsx 自行引入，不改动 styles.css 与 export/export.css，
+   与在途槽位零冲突；类名统一 share- 前缀，只复用既有的 .panel* / .btn* / .export-card__actions。 */
+
+.share-panel__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 16px 0 0;
+}
+
+.share-panel__facts dt {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.share-panel__facts dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.share-panel__feedback {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-elev-2);
+  font-size: 12px;
+}
+
+.share-panel__feedback--ok {
+  color: var(--ok);
+}
+
+.share-panel__feedback--err {
+  border-left: 2px solid var(--err);
+  color: var(--err);
+}
+
+.share-panel__preview {
+  margin-top: 16px;
+}
+
+.share-panel__preview summary {
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.share-panel__code {
+  max-height: 320px;
+  margin: 10px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
