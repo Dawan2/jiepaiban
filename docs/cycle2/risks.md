@@ -40,7 +40,8 @@
 即：**方法论文档内部自相矛盾**（`§5` 的枚举容不下 `§8` 的基准值），
 代码选了跟 `§8` 走，于是代码比 `§5` 多一项。
 
-这个差异**至少从 W1 起就存在**且被独立发现过两次：
+这个差异**至少从 W1 起就存在**且被独立发现过两次
+（下引 `../work/w3-template-library.md` 随 **M2** 合并到位，在此之前是预期的悬空链接）：
 `docs/DISPATCH.md` 的 P2 小节记为 `O-P2-1`（处置口径「PRD 不自行扩枚举，模板暂存字面值并标记
 `pending_canon`」），`cursor/w3-templates-golden-library-e98c` 的 §4 把差异做成了数据
 （目录项新增 `canon_source` / `pending_canon` / `pending_canon_reason`，配 `PENDING_CANON_TRANSITIONS`
