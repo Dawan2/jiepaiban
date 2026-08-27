@@ -207,11 +207,14 @@ describe('衔接隔离（L5）', () => {
     ['与画面描述重合', FRAMES[0] ?? ''],
   ])('%s 的操作要点不产生任何片段', (_label, note) => {
     const beat = filledBeat(1);
-    beat.note = note;
+    // 加哨兵前缀，这样「与画面描述重合」一行判的是**来源**而非字面重合：
+    // 画面描述里本来就有那段文字，但它不该带上备注的哨兵。
+    const sentinel = `备注-${note}`;
+    beat.note = sentinel;
 
     const result = run(beat);
 
-    expect(result.segments.some((segment) => segment.text.includes(note))).toBe(false);
+    expect(result.segments.some((segment) => segment.text.includes(sentinel))).toBe(false);
     expect(() => assertNoRedline(result, beat)).not.toThrow();
   });
 
