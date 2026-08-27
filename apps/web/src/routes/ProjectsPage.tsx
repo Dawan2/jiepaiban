@@ -44,11 +44,11 @@ export function ProjectsPage() {
                   </div>
                   <div>
                     <dt>画幅</dt>
-                    <dd>{project.aspectRatio}</dd>
+                    <dd>{project.aspect_ratio}</dd>
                   </div>
                   <div>
                     <dt>更新</dt>
-                    <dd>{formatDate(project.updatedAt)}</dd>
+                    <dd>{formatDate(project.updated_at)}</dd>
                   </div>
                 </dl>
                 <div className="card__footer">

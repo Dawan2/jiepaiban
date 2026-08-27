@@ -49,7 +49,7 @@ describe('路由', () => {
     renderAt(`/p/${projectId}`);
     const beatNav = screen.getByRole('list', { name: '五节拍导航' });
 
-    await userEvent.click(within(beatNav).getByRole('button', { name: /反转\/高潮/ }));
+    await userEvent.click(within(beatNav).getByRole('button', { name: /反转蓄力/ }));
 
     expect(screen.getByRole('heading', { level: 2, name: /节拍4/ })).toBeInTheDocument();
   });

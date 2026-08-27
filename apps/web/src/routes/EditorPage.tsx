@@ -12,7 +12,7 @@ import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { BeatNav } from '../components/BeatNav';
 import { findDemoProject } from '../data/demoProjects';
-import { BEAT_COUNT, type BeatIndex } from '../domain/beats';
+import { BEAT_COUNT, MAX_BEAT_DURATION_SEC, beatDef, type BeatIndex } from '../domain/beats';
 import { ProjectMissing } from './ProjectMissing';
 
 export function EditorPage() {
@@ -24,7 +24,7 @@ export function EditorPage() {
     return <ProjectMissing id={id} />;
   }
 
-  const beat = project.beats.find((item) => item.index === activeIndex);
+  const beat = project.beat_list.find((item) => item.index === activeIndex);
 
   return (
     <AppLayout
@@ -34,7 +34,7 @@ export function EditorPage() {
         <>
           <p className="nav__caption">五节拍（固定 {BEAT_COUNT} 项）</p>
           <BeatNav
-            beats={project.beats}
+            beats={project.beat_list}
             activeIndex={activeIndex}
             onSelect={(index) => setActiveIndex(index as BeatIndex)}
           />
@@ -58,25 +58,32 @@ export function EditorPage() {
         <div className="editor">
           <section className="panel" aria-labelledby="beat-card-title">
             <h2 id="beat-card-title" className="panel__title">
-              节拍{activeIndex}· {beat.name}
+              节拍{activeIndex}· {beat.title}
             </h2>
-            <p className="panel__desc">{beat.role}</p>
+            <p className="panel__desc">{beatDef(beat.index).role}</p>
             <dl className="fields">
               <div>
-                <dt>剧情概要</dt>
-                <dd>{beat.summary === '' ? '未填' : beat.summary}</dd>
+                <dt>剧情核心</dt>
+                <dd>{beat.plot_core === '' ? '未填' : beat.plot_core}</dd>
               </div>
               <div>
-                <dt>情绪基调</dt>
-                <dd>{beat.tone ?? '未选'}</dd>
+                <dt>本段情绪</dt>
+                <dd>{beat.emotion === '' ? '未填' : beat.emotion}</dd>
+              </div>
+              <div>
+                <dt>镜头节奏</dt>
+                <dd>{beat.camera_rhythm === '' ? '未填' : beat.camera_rhythm}</dd>
               </div>
               <div>
                 <dt>画面宫格</dt>
-                <dd>{beat.gridSize} 宫格</dd>
+                <dd>{beat.frame_count} 宫格（按板序锁定）</dd>
               </div>
               <div>
                 <dt>时长</dt>
-                <dd>{beat.durationSec === null ? '未填' : `${beat.durationSec} 秒`}</dd>
+                <dd>
+                  {beat.duration_sec} 秒 · 时间位 {beat.time_start}–{beat.time_end}s（上限{' '}
+                  {MAX_BEAT_DURATION_SEC} 秒）
+                </dd>
               </div>
             </dl>
             <p className="panel__todo">

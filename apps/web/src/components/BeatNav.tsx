@@ -3,7 +3,7 @@
  * 数量固定为 5：本组件不提供、也不得添加"新增/删除节拍"入口（AC-6.1）。
  */
 
-import type { Beat, BeatStatus } from '../domain/beats';
+import { beatDef, type Beat, type BeatStatus } from '../domain/beats';
 
 const STATUS_LABEL: Record<BeatStatus, string> = {
   empty: '未填',
@@ -32,8 +32,8 @@ export function BeatNav({ beats, activeIndex, onSelect }: BeatNavProps) {
           >
             <span className="beatnav__ordinal">{beat.index}</span>
             <span className="beatnav__body">
-              <span className="beatnav__name">{beat.name}</span>
-              <span className="beatnav__role">{beat.role}</span>
+              <span className="beatnav__name">{beat.title}</span>
+              <span className="beatnav__role">{beatDef(beat.index).role}</span>
             </span>
             <span className={`beatnav__dot beatnav__dot--${beat.status}`} title={STATUS_LABEL[beat.status]}>
               <span className="visually-hidden">{STATUS_LABEL[beat.status]}</span>

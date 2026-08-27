@@ -48,17 +48,17 @@ export function ExportPage() {
       }
     >
       <ol className="segments">
-        {project.beats.map((beat) => (
+        {project.beat_list.map((beat) => (
           <li key={beat.index} className="segment">
             <div className="segment__preview" aria-hidden="true">
               未生成
             </div>
             <div className="segment__body">
               <h2 className="segment__title">
-                节拍{beat.index}· {beat.name}
+                节拍{beat.index}· {beat.title}
               </h2>
               <p className="segment__meta">
-                {beat.durationSec === null ? '时长未填' : `${beat.durationSec} 秒`} · 状态：未生成
+                {beat.duration_sec} 秒 · {beat.frame_count} 宫格 · 状态：未生成
               </p>
               <Link to={`/p/${project.id}`} className="segment__action">
                 去编辑
