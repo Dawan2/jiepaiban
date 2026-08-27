@@ -15,8 +15,9 @@ import {
   type StoredProject,
 } from '../adapters/persistence';
 import { ProjectsProvider } from '../store/ProjectsProvider';
-import { createEmptyProject, type IdGen } from '../store/projectFactory';
+import { createEmptyProject, createTemplateProject, type IdGen } from '../store/projectFactory';
 import { hydrateProject, type NewProjectInput } from '../domain/projects';
+import { DEFAULT_TEMPLATE_ID, type TemplateId } from '../domain/templates';
 
 export const BASE_INPUT: NewProjectInput = {
   name: '重生之我在末世卖煎饼',
@@ -45,6 +46,21 @@ export function makeProject(
   now = '2026-08-26T09:12:00.000Z',
 ): StoredProject {
   return createEmptyProject({ ...BASE_INPUT, ...overrides }, id, now);
+}
+
+/**
+ * 走**模板起手路径**建项目：5 块板落库即带模板文案、`status` 为 `filled`。
+ *
+ * 与 {@link makeProject} + {@link withFilledBeats} 的差别是「谁填的」：这里的文案来自
+ * `domain/templates`，因此断言能区分「模板起手内容被保住了」与「测试自己填的占位文案」。
+ */
+export function makeTemplateProject(
+  id: string,
+  overrides: Partial<NewProjectInput> = {},
+  templateId: TemplateId = DEFAULT_TEMPLATE_ID,
+  now = '2026-08-26T09:12:00.000Z',
+): StoredProject {
+  return createTemplateProject({ ...BASE_INPUT, ...overrides }, id, now, templateId);
 }
 
 /** 给项目的前 n 拍挂上视频（用于「删除需二次确认」与成片页断言）。 */
