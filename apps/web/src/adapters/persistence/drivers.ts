@@ -15,6 +15,21 @@
  * 日后换成 `idb` 只需替换本文件的一个实现，不牵动任何业务代码。
  */
 
+import {
+  META_STORE,
+  PROJECT_STORE,
+  done,
+  openBeatboardDb,
+  toPromise,
+} from '../indexeddb/beatboardDb';
+
+export {
+  DB_NAME,
+  DB_VERSION,
+  META_STORE,
+  PROJECT_STORE,
+} from '../indexeddb/beatboardDb';
+
 export type StorageKind = 'indexeddb' | 'localstorage' | 'memory';
 
 /**
@@ -142,50 +157,19 @@ export class LocalStorageDriver implements StorageDriver {
 
 /* ------------------------------------------------------------- IndexedDB */
 
-export const DB_NAME = 'beatboard';
-export const DB_VERSION = 1;
-export const PROJECT_STORE = 'projects';
-export const META_STORE = 'meta';
 const META_KEY = 'envelope';
-
-function toPromise<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB 请求失败'));
-  });
-}
-
-function done(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB 事务被中止'));
-    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB 事务失败'));
-  });
-}
 
 export class IndexedDbDriver implements StorageDriver {
   readonly kind = 'indexeddb' as const;
-  private handle: Promise<IDBDatabase> | null = null;
 
   constructor(private readonly factory: IDBFactory) {}
 
+  /**
+   * 库名 / 版本 / 建表都在 `adapters/indexeddb/beatboardDb.ts`：
+   * 版本号是库级的，多个 store 的拥有者各开一次必然撞版本（详见该文件顶部注释）。
+   */
   private open(): Promise<IDBDatabase> {
-    this.handle ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const request = this.factory.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        // 记录以项目 id 为主键，一条即完整结构（含 beat_list[5]）。
-        if (!db.objectStoreNames.contains(PROJECT_STORE)) {
-          db.createObjectStore(PROJECT_STORE, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(META_STORE)) {
-          db.createObjectStore(META_STORE);
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('打开 IndexedDB 失败'));
-    });
-    return this.handle;
+    return openBeatboardDb(this.factory);
   }
 
   private async write(store: string, run: (objectStore: IDBObjectStore) => void): Promise<void> {
