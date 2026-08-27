@@ -23,6 +23,14 @@ export type GridSize = 3 | 2;
 
 export const GRID_SIZES: readonly GridSize[] = [3, 2];
 
+/**
+ * 宫格锁（PRD V1.0 `RULE-3` / `FR-1-03`，法源 `METH-001 §6`）：
+ * 宫格数由板序推导，B1–B4 = 3、B5 = 2，只读，UI 不提供修改入口。
+ */
+export function gridSizeForBeat(index: BeatIndex): GridSize {
+  return index === BEAT_COUNT ? 2 : 3;
+}
+
 /** 情绪基调单选项（PRD 5.2.2）。 */
 export type EmotionTone = '紧张' | '温情' | '悬疑' | '爆笑' | '愤怒' | '悲伤' | '燃';
 
@@ -63,7 +71,10 @@ export interface Beat {
   summary: string;
   /** 情绪基调，进 Prompt。 */
   tone: EmotionTone | null;
-  /** 宫格规格：3 或 2。切到 2 时第 3 格内容保留为草稿、不参与组装。 */
+  /**
+   * 宫格规格：由板序推导（B1–B4 = 3、B5 = 2，`RULE-3`），对用户只读。
+   * 持久化层每次读写都按 {@link gridSizeForBeat} 归一，第 3 格数据始终保留但 B5 不参与组装。
+   */
   gridSize: GridSize;
   /** 始终保留 3 格数据；参与组装的格数由 gridSize 决定。 */
   cells: readonly [GridCell, GridCell, GridCell];
@@ -123,7 +134,7 @@ export function createDefaultBeats(episodeDurationSec?: number): Beat[] {
     name: preset.name,
     summary: '',
     tone: null,
-    gridSize: 3,
+    gridSize: gridSizeForBeat(preset.index),
     cells: emptyCells(),
     durationSec: perBeat,
     transition: '',

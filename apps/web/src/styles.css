@@ -159,6 +159,20 @@ body {
   font-weight: 600;
 }
 
+.btn--small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.btn--danger {
+  color: var(--err);
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--err);
+}
+
 /* ── 导航 ──────────────────────────────────────────────────────── */
 
 .mainnav,
@@ -479,4 +493,116 @@ body {
 
 .empty {
   color: var(--text-dim);
+}
+
+/* ── 表单 / 提示 / 保存态（W2 本地持久化） ─────────────────────── */
+
+.form {
+  max-width: 620px;
+  margin-bottom: 20px;
+}
+
+.form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.field {
+  display: block;
+  margin-top: 12px;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.field__input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.field__input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.field__hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.notice {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 2px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.notice--warn {
+  border-left-color: var(--warn);
+}
+
+.notice--danger {
+  border-left-color: var(--err);
+  color: var(--text);
+}
+
+.panel--danger {
+  border-color: var(--err);
+  margin-bottom: 20px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.card--archived {
+  opacity: 0.62;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.savestate {
+  align-self: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.savestate--dirty {
+  color: var(--warn);
+}
+
+.savestate--saved {
+  color: var(--ok);
+}
+
+.savestate--error {
+  color: var(--err);
 }

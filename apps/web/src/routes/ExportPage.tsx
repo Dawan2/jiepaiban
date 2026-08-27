@@ -7,15 +7,23 @@
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { MainNav } from '../components/MainNav';
-import { findDemoProject } from '../data/demoProjects';
 import { BEAT_COUNT } from '../domain/beats';
+import { useProject } from '../store/ProjectsProvider';
 import { ProjectMissing } from './ProjectMissing';
 
 export function ExportPage() {
   const { id = '' } = useParams<{ id: string }>();
-  const project = findDemoProject(id);
+  const { project, state } = useProject(id);
 
-  if (project === undefined) {
+  if (state === 'loading') {
+    return (
+      <AppLayout title="成片" nav={<MainNav />}>
+        <p className="empty">读取项目…</p>
+      </AppLayout>
+    );
+  }
+
+  if (project === null) {
     return <ProjectMissing id={id} />;
   }
 
@@ -48,24 +56,28 @@ export function ExportPage() {
       }
     >
       <ol className="segments">
-        {project.beats.map((beat) => (
-          <li key={beat.index} className="segment">
-            <div className="segment__preview" aria-hidden="true">
-              未生成
-            </div>
-            <div className="segment__body">
-              <h2 className="segment__title">
-                节拍{beat.index}· {beat.name}
-              </h2>
-              <p className="segment__meta">
-                {beat.durationSec === null ? '时长未填' : `${beat.durationSec} 秒`} · 状态：未生成
-              </p>
-              <Link to={`/p/${project.id}`} className="segment__action">
-                去编辑
-              </Link>
-            </div>
-          </li>
-        ))}
+        {project.beats.map((beat) => {
+          const generated = beat.videoUrl !== null && beat.videoUrl !== '';
+          return (
+            <li key={beat.index} className="segment">
+              <div className="segment__preview" aria-hidden="true">
+                {generated ? '已生成' : '未生成'}
+              </div>
+              <div className="segment__body">
+                <h2 className="segment__title">
+                  节拍{beat.index}· {beat.name}
+                </h2>
+                <p className="segment__meta">
+                  {beat.durationSec === null ? '时长未填' : `${beat.durationSec} 秒`} · 状态：
+                  {generated ? '已生成' : '未生成'}
+                </p>
+                <Link to={`/p/${project.id}`} className="segment__action">
+                  去编辑
+                </Link>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </AppLayout>
   );
