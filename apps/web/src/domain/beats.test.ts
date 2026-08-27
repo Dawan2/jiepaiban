@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   BEAT_COUNT,
+  BEAT_INDEXES,
   BEAT_PRESETS,
+  CELL_ROLE_HINTS,
   GRID_SIZES,
+  GRID_SIZE_BY_BEAT_INDEX,
   PROMPT_EXCLUDED_BEAT_FIELDS,
+  TOTAL_GRID_CELL_COUNT,
   activeCells,
+  beatTimeRanges,
+  cellRoleHint,
   createDefaultBeats,
+  episodeTotalSec,
+  gridSizeForBeatIndex,
   isBeatReady,
   type Beat,
 } from './beats';
@@ -80,6 +88,83 @@ describe('画面宫格（AC-6.3）', () => {
   it('宫格里只有白话画面描述，没有镜头级专业字段', () => {
     const cell = createDefaultBeats()[0]?.cells[0];
     expect(Object.keys(cell ?? {}).sort()).toEqual(['description', 'order']);
+  });
+});
+
+describe('宫格数位置锁（METH-003 §1）', () => {
+  it('B1–B4 三格、B5 两格', () => {
+    expect(BEAT_INDEXES.map((index) => gridSizeForBeatIndex(index))).toEqual([3, 3, 3, 3, 2]);
+    expect(GRID_SIZE_BY_BEAT_INDEX).toEqual({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 2 });
+  });
+
+  it('新建项目的 5 拍按板位预填格数，合计 14 格', () => {
+    const beats = createDefaultBeats(120);
+    expect(beats.map((beat) => beat.gridSize)).toEqual([3, 3, 3, 3, 2]);
+    expect(beats.reduce((sum, beat) => sum + activeCells(beat).length, 0)).toBe(
+      TOTAL_GRID_CELL_COUNT,
+    );
+    expect(TOTAL_GRID_CELL_COUNT).toBe(14);
+  });
+
+  it('每格都有位置语义提示，且提示数与格数一致', () => {
+    BEAT_INDEXES.forEach((index) => {
+      const size = gridSizeForBeatIndex(index);
+      expect(CELL_ROLE_HINTS[index]).toHaveLength(size);
+      for (let order = 1; order <= size; order += 1) {
+        expect(cellRoleHint(index, order)).not.toBe('');
+      }
+    });
+  });
+
+  it('不导出任何增删宫格的能力', async () => {
+    const moduleExports = Object.keys(await import('./beats'));
+    expect(
+      moduleExports.filter((name) => /(cell|grid)/i.test(name) && /^(add|remove|delete)/i.test(name)),
+    ).toEqual([]);
+  });
+});
+
+describe('时间位（METH-003 §1 时间位列）', () => {
+  it('由各拍时长累加得出 5 个时间位', () => {
+    const beats = createDefaultBeats(120);
+    expect(beatTimeRanges(beats)).toEqual([
+      { startSec: 0, endSec: 24 },
+      { startSec: 24, endSec: 48 },
+      { startSec: 48, endSec: 72 },
+      { startSec: 72, endSec: 96 },
+      { startSec: 96, endSec: 120 },
+    ]);
+    expect(episodeTotalSec(beats)).toBe(120);
+  });
+
+  it('时长未填则该拍及其后续时间位不可知，不用 0 顶替', () => {
+    const beats = createDefaultBeats(120);
+    const third = beats[2];
+    if (third === undefined) {
+      throw new Error('缺少节拍 3');
+    }
+    third.durationSec = null;
+
+    expect(beatTimeRanges(beats)).toEqual([
+      { startSec: 0, endSec: 24 },
+      { startSec: 24, endSec: 48 },
+      null,
+      null,
+      null,
+    ]);
+    expect(episodeTotalSec(beats)).toBeNull();
+  });
+
+  it('时间位随时长改动而变', () => {
+    const beats = createDefaultBeats(120);
+    const first = beats[0];
+    if (first === undefined) {
+      throw new Error('缺少节拍 1');
+    }
+    first.durationSec = 8;
+
+    expect(beatTimeRanges(beats)[0]).toEqual({ startSec: 0, endSec: 8 });
+    expect(beatTimeRanges(beats)[1]).toEqual({ startSec: 8, endSec: 32 });
   });
 });
 
