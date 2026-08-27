@@ -16,6 +16,7 @@ import {
 } from '../adapters/persistence';
 import { ProjectsProvider } from '../store/ProjectsProvider';
 import { createEmptyProject, type IdGen } from '../store/projectFactory';
+import { assemblePrompt } from '../domain/prompt';
 import { hydrateProject, type NewProjectInput } from '../domain/projects';
 
 export const BASE_INPUT: NewProjectInput = {
@@ -47,13 +48,19 @@ export function makeProject(
   return createEmptyProject({ ...BASE_INPUT, ...overrides }, id, now);
 }
 
-/** 给项目的前 n 拍挂上视频（用于「删除需二次确认」与成片页断言）。 */
+/**
+ * 给项目的前 n 拍挂上**落库的**生成产物（用于「删除需二次确认」与成片页断言）。
+ *
+ * `prompt_final` 一并补上，且由组装器现算——落库的快照在生产路径上同样出自白名单，
+ * 成片页与导出侧的「快照可溯」断言才跑在真实形状上。
+ */
 export function withVideos(project: StoredProject, count: number): StoredProject {
   const { beat_list: stored, ...fields } = project;
   const beats = stored.map((beat, i) => {
     const copy = rebuildBeat(beat);
     if (i < count) {
       copy.video_url = `https://cdn.example.com/${project.id}-${beat.index}.mp4`;
+      copy.prompt_final = assemblePrompt(project, copy);
       copy.status = 'generated';
     }
     return copy;

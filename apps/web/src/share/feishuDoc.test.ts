@@ -13,7 +13,11 @@ import { assemblePrompt, findExcludedFieldLeaks } from '../domain/prompt';
 import { beatAt } from '../domain/projects';
 import { TRANSITION_RULES, TRANSITION_STAGE } from '../domain/transitions';
 import { buildSegmentCards } from '../export/segments';
-import { createGeneratedEpisode } from '../export/fixtures';
+import {
+  createGeneratedEpisode,
+  storedPromptSnapshot,
+  withStoredGeneration,
+} from '../export/fixtures';
 import { createFilledEpisode } from '../testing/goldens';
 import {
   buildFeishuDoc,
@@ -246,5 +250,59 @@ describe('成片交付状态（可选一节）', () => {
     expect(doc.beats.filter((beat) => beat.video_url === null).map((beat) => beat.index)).toEqual([
       4, 5,
     ]);
+  });
+});
+
+describe('落库态与 Prompt 快照（W8）', () => {
+  it('段状态取自落库的成片时，交付一节照旧点清 5/5', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    withStoredGeneration(fixture.project);
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+
+    const doc = buildFeishuDoc(fixture.project, { now: NOW, cards });
+
+    expect(doc.delivery?.is_complete).toBe(true);
+    expect(doc.delivery?.ready_count).toBe(BEAT_COUNT);
+    expect(
+      doc.beats.every((beat) => beat.video_url?.startsWith('https://cdn.example.com/') === true),
+    ).toBe(true);
+  });
+
+  it('已生成的拍给的是提交快照，不跟着事后改的文案漂移', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    withStoredGeneration(fixture.project, [1]);
+    const snapshot = storedPromptSnapshot(fixture.project, 1);
+    beatAt(fixture.project, 1).plot_core = '生成之后又改过的剧情核心';
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+
+    const doc = buildFeishuDoc(fixture.project, { now: NOW, cards });
+
+    expect(doc.beats[0]?.prompt_final).toBe(snapshot);
+    expect(doc.beats[0]?.prompt_final).not.toContain('生成之后又改过的剧情核心');
+    // 没生成过的拍仍按当前字段现算。
+    expect(doc.beats[1]?.prompt_final).toBe(assemblePrompt(fixture.project, beatAt(fixture.project, 2)));
+  });
+
+  it('走快照这条路，衔接仍只在后期那一节（AC-6.4）', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    beatAt(fixture.project, 3).transition_rule = '螺口顺滑过渡';
+    beatAt(fixture.project, 3).note = '备注哨兵';
+    withStoredGeneration(fixture.project);
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+
+    const doc = buildFeishuDoc(fixture.project, { now: NOW, cards });
+
+    doc.beats.forEach((beat) => {
+      TRANSITION_RULES.forEach((rule) => {
+        expect(beat.prompt_final).not.toContain(rule);
+      });
+      expect(beat.prompt_final).not.toContain('备注哨兵');
+      expect(findExcludedFieldLeaks(beatAt(fixture.project, beat.index), beat.prompt_final)).toEqual(
+        [],
+      );
+    });
+    // 衔接照旧成节，标注只在后期生效。
+    expect(doc.transitions[2]?.rule).toBe('螺口顺滑过渡');
+    expect(doc.transitions.every((item) => item.stage === TRANSITION_STAGE)).toBe(true);
   });
 });

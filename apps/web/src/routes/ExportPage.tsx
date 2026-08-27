@@ -10,11 +10,13 @@
  * 与编辑页共用 `store/generated.ts` 的那一份判据。
  */
 
+import { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { MainNav } from '../components/MainNav';
 import type { StoredProject } from '../adapters/persistence';
 import { ExportView } from '../export/ExportView';
+import type { GenerateBoardState } from '../generate/controller';
 import { pendingGeneratedStates, withGeneratedResults } from '../store/generated';
 import { useProject, useProjects } from '../store/ProjectsProvider';
 import { useProjectEditor } from '../store/useProjectEditor';
@@ -46,16 +48,18 @@ function ExportBoard({ project }: { readonly project: StoredProject }) {
   const editor = useProjectEditor(project, { save });
   const draft = editor.draft ?? project;
 
-  return (
-    <ExportView
-      project={draft}
-      onStatesChange={(states) => {
-        const pending = pendingGeneratedStates(draft, states);
-        if (pending.length === 0) {
-          return;
-        }
-        editor.update((current) => withGeneratedResults(current, pending));
-      }}
-    />
+  // 身份稳定，否则 ExportView 里的上报 effect 每次渲染都要重跑一遍。
+  const onStatesChange = useCallback(
+    (states: readonly GenerateBoardState[]) => {
+      const pending = pendingGeneratedStates(draft, states);
+      // 库里那份与队列一致时一个字都不写：只是打开成片页不该算一次保存。
+      if (pending.length === 0) {
+        return;
+      }
+      editor.update((current) => withGeneratedResults(current, pending));
+    },
+    [draft, editor],
   );
+
+  return <ExportView project={draft} onStatesChange={onStatesChange} />;
 }

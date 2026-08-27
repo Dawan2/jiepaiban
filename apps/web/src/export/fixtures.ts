@@ -6,8 +6,9 @@
  * 「衔接不进请求体」这类断言才有意义。
  */
 
+import { assemblePrompt } from '../domain/prompt';
 import { beatAt, type Project } from '../domain/projects';
-import { BEAT_INDEXES, type BeatIndex } from '../domain/beats';
+import { BEAT_INDEXES, type Beat, type BeatIndex } from '../domain/beats';
 import {
   createSeedanceAdapter,
   type SeedanceSubmission,
@@ -71,4 +72,39 @@ export async function createGeneratedEpisode(
   const controller = createGenerateController({ project, queue, autoRun: false });
 
   return { project, store, queue, controller, submissions };
+}
+
+/** 落库的成片地址（PRD §8.2 `video_url`），与桩件生成的地址刻意不同形，便于分辨来源。 */
+export function storedVideoUrlFor(projectId: string, index: BeatIndex): string {
+  return `https://cdn.example.com/${projectId}-${index}.mp4`;
+}
+
+/** 读落库的 Prompt 快照。领域层的板没有这个字段，断言时经这里取一次即可。 */
+export function storedPromptSnapshot(project: Project, index: BeatIndex): string | null {
+  return (beatAt(project, index) as Beat & StoredFields).prompt_final ?? null;
+}
+
+interface StoredFields {
+  video_url: string | null;
+  prompt_final: string | null;
+}
+
+/**
+ * 给项目的指定板挂上**落库的**生成产物，模拟「上一次会话已经生成过、这次刚打开成片页」。
+ *
+ * 用的是与 `adapters/persistence/schema.toStoredBeat` 相同的写法（就地补字段），
+ * 因此段卡读到的落库态与生产路径同形；`prompt_final` 由组装器现算一份，
+ * 保证快照本身也是白名单产物（AC-6.4）。
+ */
+export function withStoredGeneration(
+  project: Project,
+  indexes: readonly BeatIndex[] = BEAT_INDEXES,
+): Project {
+  indexes.forEach((index) => {
+    const beat = beatAt(project, index) as typeof project.beat_list[number] & StoredFields;
+    beat.video_url = storedVideoUrlFor(project.id, index);
+    beat.prompt_final = assemblePrompt(project, beat);
+    beat.status = 'generated';
+  });
+  return project;
 }

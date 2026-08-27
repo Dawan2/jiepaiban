@@ -11,7 +11,12 @@ import { BEAT_COUNT } from '../domain/beats';
 import { assemblePrompt, findExcludedFieldLeaks } from '../domain/prompt';
 import { beatAt } from '../domain/projects';
 import { TRANSITION_RULES, TRANSITION_STAGE } from '../domain/transitions';
-import { createGeneratedEpisode, FIXED_GENERATED_AT } from './fixtures';
+import {
+  createGeneratedEpisode,
+  FIXED_GENERATED_AT,
+  storedPromptSnapshot,
+  withStoredGeneration,
+} from './fixtures';
 import {
   EXPORT_SCHEMA_VERSION,
   buildDeliveryManifest,
@@ -135,6 +140,68 @@ describe('项目 JSON 导出', () => {
     ['api_key', 'apiKey', 'token', 'secret'].forEach((key) => {
       expect(body).not.toContain(key);
     });
+  });
+});
+
+describe('Prompt 快照可溯：档案记的是当时发出去的那份（W8 / AC-6.9）', () => {
+  it('已生成的板取落库的 prompt_final，而不是按当前文案现算', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    withStoredGeneration(fixture.project, [1]);
+    const snapshot = storedPromptSnapshot(fixture.project, 1);
+
+    // 生成之后又改了文案：现算的一份会跟着变，档案里那份不该跟着变。
+    beatAt(fixture.project, 1).plot_core = '生成之后又改过的剧情核心';
+
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+    const payload = buildProjectExport(fixture.project, cards, { now: NOW });
+
+    expect(payload.beats[0]?.prompt_final).toBe(snapshot);
+    expect(payload.beats[0]?.prompt_final).not.toContain('生成之后又改过的剧情核心');
+    expect(payload.beats[0]?.prompt_is_snapshot).toBe(true);
+  });
+
+  it('从未生成过的板按当前字段现算，并标明不是快照', async () => {
+    const { payload, project } = await exportFor([1, 2, 3]);
+
+    expect(payload.beats[3]?.prompt_final).toBe(assemblePrompt(project, beatAt(project, 4)));
+    expect(payload.beats[3]?.prompt_is_snapshot).toBe(false);
+  });
+
+  it('走快照这条路，衔接 / 名称 / 备注照旧一个字都不在（AC-6.4）', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    beatAt(fixture.project, 1).transition_rule = '螺口顺滑过渡';
+    beatAt(fixture.project, 1).note = '备注哨兵';
+    beatAt(fixture.project, 1).title = '名称哨兵';
+    withStoredGeneration(fixture.project, [1]);
+
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+    const payload = buildProjectExport(fixture.project, cards, { now: NOW });
+    const prompt = payload.beats[0]?.prompt_final ?? '';
+
+    expect(payload.beats[0]?.prompt_is_snapshot).toBe(true);
+    TRANSITION_RULES.forEach((rule) => {
+      expect(prompt).not.toContain(rule);
+    });
+    expect(prompt).not.toContain('备注哨兵');
+    expect(prompt).not.toContain('名称哨兵');
+    expect(findExcludedFieldLeaks(beatAt(fixture.project, 1), prompt)).toEqual([]);
+    // 衔接照旧出现在板级字段与衔接总表里，导出不是把它删掉。
+    expect(payload.beats[0]?.transition_rule).toBe('螺口顺滑过渡');
+  });
+
+  it('落库的成片进得了交付清单（空队列也能出包）', async () => {
+    const fixture = await createGeneratedEpisode({ generated: [] });
+    withStoredGeneration(fixture.project);
+
+    const cards = buildSegmentCards(fixture.project, fixture.controller.snapshot());
+    const manifest = buildDeliveryManifest(fixture.project, cards, { now: NOW });
+
+    expect(manifest.is_complete).toBe(true);
+    expect(manifest.segment_count).toBe(BEAT_COUNT);
+    expect(manifest.entries).toHaveLength(BEAT_COUNT + 1);
+    expect(manifest.entries[0]?.source_url).toContain('https://cdn.example.com/');
+    // 真实地址不是桩件地址，清单的说明文案随之切换。
+    expect(manifest.note).not.toContain('桩件地址');
   });
 });
 

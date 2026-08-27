@@ -52,6 +52,7 @@ export interface StoredGeneration {
   readonly prompt_final?: string | null;
 }
 
+/** 空串与 `null` 一样算未生成，判据与持久化层的 `hasVideo()` 保持一致。 */
 function storedVideoUrl(beat: Beat): string | null {
   const url = (beat as Beat & StoredGeneration).video_url;
   return url === undefined || url === null || url === '' ? null : url;
