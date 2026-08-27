@@ -17,6 +17,8 @@
 | 分支 Branch | `cursor/wave1-p1-methodology-canon-94f3` |
 | 基线 Base | `main` @ `09e11fd` |
 | 方法论提交 SHA | `341ade1d71b3392244a4c41b16410b01edceb544` |
+| 回执提交 SHA | `50e22fe583e1df30394a0dba91370c137e3b0b6f` |
+| 法源修订 SHA | `9f201c5d1f19d58402050dbd0cf8a46191afef35`（清除正文禁用词用法） |
 | 状态 | **已完成（docs-only，无 PR，仅 commit + push）** |
 
 ### 交付文件（File List）
