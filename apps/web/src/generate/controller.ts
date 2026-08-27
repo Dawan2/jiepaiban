@@ -77,6 +77,14 @@ export interface GenerateControllerOptions {
   readonly autoRun?: boolean;
   /** 自动开跑时的异常回调；默认吞掉，避免未处理的 rejection。 */
   readonly onRunError?: (error: unknown) => void;
+  /**
+   * 任务进终态时的回调，转交给自建队列（{@link GenerateQueueOptions.onSettle}）。
+   *
+   * 生成结果的落库走这条路：它不经控制器的订阅，因此**不随 `dispose` 消失**——
+   * 离页之后才跑完的任务，结果仍会落库。注入 `queue` 时请直接把 `onSettle`
+   * 交给 `createGenerateQueue`，控制器不去改外部队列的接线。
+   */
+  readonly onSettle?: (job: GenerateJob) => void;
 }
 
 function actionLabel(status: GenerateJobStatus, job: GenerateJob | null): string {
@@ -96,11 +104,17 @@ export function createGenerateController(
   options: GenerateControllerOptions,
 ): GenerateController {
   let project = options.project;
+  if (options.queue !== undefined && options.onSettle !== undefined) {
+    throw new Error(
+      '注入队列时请把 onSettle 交给 createGenerateQueue：控制器不改动外部队列的接线',
+    );
+  }
   const queue =
     options.queue ??
     createGenerateQueue({
       ...(options.adapter === undefined ? {} : { adapter: options.adapter }),
       ...(options.store === undefined ? {} : { store: options.store }),
+      ...(options.onSettle === undefined ? {} : { onSettle: options.onSettle }),
     });
   const autoRun = options.autoRun ?? true;
   const listeners = new Set<() => void>();

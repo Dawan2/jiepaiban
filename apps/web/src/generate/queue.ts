@@ -21,6 +21,7 @@ import {
   SEEDANCE_MODEL,
   canTransition,
   isActiveStatus,
+  isTerminalStatus,
   type GenerateFailure,
   type GenerateJob,
   type GenerateJobStatus,
@@ -66,6 +67,16 @@ export interface GenerateQueueOptions {
   readonly store?: GenerateJobStore;
   readonly now?: () => string;
   readonly newId?: () => string;
+  /**
+   * 任务进入终态（成功 / 失败）时回调一次，带上终态任务快照。
+   *
+   * 这是**生成结果落库的挂点**：它挂在状态机上而不是某个组件的订阅上，
+   * 所以用户离页、编辑页卸载之后跑完的任务，结果照样有人接
+   * （见 `store/generateResults.ts`）。
+   *
+   * 回调不得抛错：它跑在状态流转的调用栈里，抛出会中断 `drain` 的剩余任务。
+   */
+  readonly onSettle?: (job: GenerateJob) => void;
 }
 
 let idSequence = 0;
@@ -104,6 +115,9 @@ export function createGenerateQueue(options: GenerateQueueOptions = {}): Generat
     };
     const saved = store.save(next);
     notify();
+    if (isTerminalStatus(saved.status)) {
+      options.onSettle?.(saved);
+    }
     return saved;
   }
 
