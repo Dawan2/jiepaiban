@@ -67,6 +67,10 @@
     {
       "path": "apps/web/src/editor/BeatBoard.test.tsx",
       "reason": "AC-6.8 守卫测试：必须写出禁用词才能断言节拍板与宫格上找不到镜头级字段"
+    },
+    {
+      "path": "apps/web/src/routes/ProjectsPage.test.tsx",
+      "reason": "AC-6.1 / AC-6.8 守卫测试：断言新建表单里没有板数与镜头级结构选项"
     }
   ]
 }

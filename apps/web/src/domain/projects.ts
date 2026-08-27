@@ -12,7 +12,7 @@ import {
   BEAT_COUNT,
   BASELINE_EPISODE_DURATION_SEC,
   EPISODE_DURATION_RANGE_SEC,
-  assertBeatListLocked,
+  assertBeatStructureLocked,
   createBeatList,
   isBeatReady,
   validateBeatList,
@@ -76,15 +76,18 @@ function attachBeatList(draft: Omit<Project, 'beat_list'>): Project {
 /**
  * 用现成的 5 块板重装一个项目——持久化读回与编辑态回落的唯一入口。
  *
- * 板列表先过 {@link assertBeatListLocked}，再以不可写属性挂上、数组冻结：
+ * 板列表先过 {@link assertBeatStructureLocked}，再以不可写属性挂上、数组冻结：
  * 数据绕过 {@link createEmptyProject} 从库里回来，五节拍锁与宫格锁照样成立。
  * 泛型保留调用方的额外字段（持久化层的 `created_at` / `archived` 等）。
+ *
+ * 这里只拦**结构**违规。编辑态每敲一个字都会走这条路，取值越界（时长清空的那一瞬间）
+ * 属于正常中间态，由落库前的 `assertProjectLocks` 拦住。
  */
 export function hydrateProject<T extends Omit<Project, 'beat_list'>, B extends Beat>(
   fields: T,
   beatList: readonly B[],
 ): T & { readonly beat_list: readonly [B, B, B, B, B] } {
-  assertBeatListLocked(beatList);
+  assertBeatStructureLocked(beatList);
   const project = { ...fields } as T & { readonly beat_list: readonly [B, B, B, B, B] };
   Object.defineProperty(project, 'beat_list', {
     value: Object.freeze([...beatList]),

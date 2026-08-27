@@ -63,7 +63,7 @@ describe('保存（FR-2-11）', () => {
     renderApp('/p/prj_1', { repository });
     await ready();
 
-    await user.type(screen.getByLabelText('剧情核心'), '雨夜巷口，女主被堵');
+    await user.type(screen.getByRole('textbox', { name: '剧情核心' }), '雨夜巷口，女主被堵');
     await user.click(saveButton());
 
     await waitFor(async () => {
@@ -110,7 +110,7 @@ describe('保存（FR-2-11）', () => {
 
     expect(saveState()).toHaveTextContent('已保存');
 
-    await user.type(screen.getByLabelText('剧情核心'), '改一下');
+    await user.type(screen.getByRole('textbox', { name: '剧情核心' }), '改一下');
     expect(saveState()).toHaveTextContent('未保存');
 
     await user.click(saveButton());
@@ -129,7 +129,7 @@ describe('保存（FR-2-11）', () => {
     renderApp('/p/prj_1', { repository });
     await ready();
 
-    await user.type(screen.getByLabelText('剧情核心'), '随手记');
+    await user.type(screen.getByRole('textbox', { name: '剧情核心' }), '随手记');
     await user.click(saveButton());
 
     await waitFor(async () => {

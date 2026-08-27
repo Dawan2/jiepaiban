@@ -303,6 +303,8 @@ describe('Prompt 实时预览（AC-6.5 / AC-6.7）', () => {
     expect(screen.getByText(/待填/)).toBeInTheDocument();
 
     await userEvent.selectOptions(screen.getByLabelText(/情绪基调/), '紧张');
+    await userEvent.type(screen.getByRole('textbox', { name: /镜头节奏/ }), '极快切入');
+    await userEvent.type(screen.getByRole('textbox', { name: '剧情核心' }), '雨夜巷口被堵');
     for (const cell of gridCells()) {
       await userEvent.type(within(cell as HTMLElement).getByRole('textbox'), '画面内容');
     }

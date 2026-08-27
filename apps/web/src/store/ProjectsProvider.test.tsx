@@ -124,7 +124,7 @@ describe('保存后不重建编辑区', () => {
 
     await waitFor(() => expect(screen.queryByText(/读取项目/)).toBeNull());
 
-    const plotCore = screen.getByLabelText('剧情核心');
+    const plotCore = screen.getByRole('textbox', { name: '剧情核心' });
     plotCore.focus();
     await user.type(plotCore, '记一笔');
     await user.click(screen.getByRole('button', { name: '保存' }));
@@ -134,7 +134,7 @@ describe('保存后不重建编辑区', () => {
     });
 
     // 同一个 DOM 节点仍在文档里，说明没有整片重建。
-    expect(screen.getByLabelText('剧情核心')).toBe(plotCore);
+    expect(screen.getByRole('textbox', { name: '剧情核心' })).toBe(plotCore);
     expect(plotCore).toBeInTheDocument();
   });
 });

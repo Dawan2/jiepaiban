@@ -526,12 +526,55 @@ export function validateBeatList(beatList: readonly Beat[]): readonly LockViolat
   return Object.freeze(violations);
 }
 
-/** 违规即抛错，用于写入前的守卫。 */
-export function assertBeatListLocked(beatList: readonly Beat[]): void {
-  const violations = validateBeatList(beatList);
+/**
+ * 结构锁违规码 —— 由板序推导、用户**改不了**的那部分。
+ *
+ * 与之相对的 `DURATION_OVER_CAP` / `TRANSITION_RULE_UNKNOWN` 是**取值**违规：
+ * 用户正在编辑时可以短暂越界（清空时长输入框的那一瞬间就是 0），
+ * 所以只在写入库前拦，不在编辑态每一帧都拦。
+ */
+export const STRUCTURAL_LOCK_CODES = Object.freeze([
+  'BEAT_COUNT_NOT_5',
+  'BEAT_INDEX_OUT_OF_ORDER',
+  'BEAT_TYPE_MISMATCH',
+  'G_INDEX_MISMATCH',
+  'TIME_RANGE_MISMATCH',
+  'FRAME_COUNT_MISMATCH',
+  'FRAME_COUNT_NOT_LOCKED',
+  'FRAME_ORDER_NOT_LTR',
+] as const satisfies readonly LockViolationCode[]);
+
+export type StructuralLockCode = (typeof STRUCTURAL_LOCK_CODES)[number];
+
+export function isStructuralViolation(violation: LockViolation): boolean {
+  return (STRUCTURAL_LOCK_CODES as readonly LockViolationCode[]).includes(violation.code);
+}
+
+/** 只校验结构锁，不看取值。 */
+export function validateBeatStructure(beatList: readonly Beat[]): readonly LockViolation[] {
+  return Object.freeze(validateBeatList(beatList).filter(isStructuralViolation));
+}
+
+function assertNoViolations(violations: readonly LockViolation[]): void {
   if (violations.length > 0) {
     throw new Error(
       `五节拍结构违规：${violations.map((item) => `[${item.code}] ${item.message}`).join('；')}`,
     );
   }
+}
+
+/** 违规即抛错，用于写入前的守卫。 */
+export function assertBeatListLocked(beatList: readonly Beat[]): void {
+  assertNoViolations(validateBeatList(beatList));
+}
+
+/**
+ * 结构违规即抛错，取值越界放过。
+ *
+ * 编辑态每次改动都会重装一次项目（`hydrateProject`），那条路上必须允许
+ * 「时长暂时为 0」这类中间态——否则用户清空输入框的一瞬间整页就崩了。
+ * 取值仍在落库前由 `adapters/persistence` 的 `assertProjectLocks` 拦住。
+ */
+export function assertBeatStructureLocked(beatList: readonly Beat[]): void {
+  assertNoViolations(validateBeatStructure(beatList));
 }
