@@ -117,7 +117,7 @@ export interface GenerateRequest {
 
 /**
  * 生成请求体。请求体里只有 prompt 与参数位——
- * 没有任何承载衔接 / 名称 / 备注的字段，也没有 shot / camera_json 之类的分镜结构。
+ * 没有任何承载衔接 / 名称 / 备注的字段，也没有 shot / camera_json 之类的镜头级结构。
  */
 export function buildGenerateRequest(project: Project, beat: Beat): GenerateRequest {
   return Object.freeze({

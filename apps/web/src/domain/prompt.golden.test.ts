@@ -30,7 +30,7 @@ import {
 
 /**
  * PRD 5.3「转场词拦截清单（最小集）」。组装结果命中任一即为红线违规。
- * 注意这里不含「分镜」类禁用词——那由 `npm run lint:terms` 的术语扫描负责。
+ * 注意这里不含 METH-002 §8 的禁用词——那由 `npm run lint:terms` 的术语扫描负责。
  */
 const TRANSITION_WORDS: readonly string[] = Object.freeze([
   '音频预接',
