@@ -27,12 +27,14 @@ import {
 } from '../adapters/persistence';
 import {
   createEmptyProject,
+  createTemplateProject,
   randomProjectId,
   reuseProject,
   setArchived,
   type IdGen,
 } from './projectFactory';
 import { hydrateProject, type NewProjectInput } from '../domain/projects';
+import type { TemplateId } from '../domain/templates';
 
 export type LoadState = 'loading' | 'ready' | 'error';
 
@@ -43,7 +45,11 @@ interface ProjectsContextValue {
   readonly repository: ProjectRepository;
   /** 强制重读列表（导入后、跨页返回时用）。 */
   refresh(): Promise<void>;
-  createProject(input: NewProjectInput): Promise<StoredProject>;
+  /**
+   * 新建项目。`templateId` 为 null 走空白五板；给出模板标识则套用该模板的起手文案，
+   * 两条路径产出的结构完全一致（见 `projectFactory.createTemplateProject`）。
+   */
+  createProject(input: NewProjectInput, templateId?: TemplateId | null): Promise<StoredProject>;
   /** 复用（PRD §7.2）：复制结构与参数、清空画面文案与生成结果。 */
   reuse(id: string): Promise<StoredProject>;
   archive(id: string, archived: boolean): Promise<void>;
@@ -121,8 +127,11 @@ export function ProjectsProvider({
       load: (id) => repository.load(id),
       save,
 
-      async createProject(input) {
-        const project = createEmptyProject(input, newId(), now());
+      async createProject(input, templateId = null) {
+        const project =
+          templateId === null
+            ? createEmptyProject(input, newId(), now())
+            : createTemplateProject(input, newId(), now(), templateId);
         await repository.save(project);
         await refresh();
         return project;

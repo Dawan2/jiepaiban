@@ -7,6 +7,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BEAT_COUNT, TOTAL_FRAME_COUNT } from '../domain/beats';
+import { BANQUET_HOOK_TEMPLATE } from '../domain/templates';
 import { rebuildBeat, serializeEnvelope, type StoredProject } from '../adapters/persistence';
 import { hydrateProject } from '../domain/projects';
 import {
@@ -103,6 +104,135 @@ describe('新建项目（PRD §7.1）', () => {
     const text = form.textContent ?? '';
 
     expect(text).not.toMatch(/板数|节拍数量|分镜/);
+  });
+});
+
+describe('新建时可套用黄金五板模板（空板不是唯一起手路径）', () => {
+  const openForm = async (user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> => {
+    await user.click(screen.getByRole('button', { name: '新建项目' }));
+    return screen.getByRole('form', { name: '新建项目' });
+  };
+
+  const templateRadio = (form: HTMLElement) =>
+    within(form).getByRole('radio', { name: new RegExp(BANQUET_HOOK_TEMPLATE.title) });
+
+  it('起手内容默认是空白五板，套模板是显式选择', async () => {
+    const user = userEvent.setup();
+    renderApp('/', { repository: await seedRepository([]) });
+    await ready();
+
+    const form = await openForm(user);
+    expect(within(form).getByRole('radio', { name: /空白五板/ })).toBeChecked();
+    expect(templateRadio(form)).not.toBeChecked();
+  });
+
+  it('模板选项列出内置模板，并说明套用后会填好 5 块板', async () => {
+    const user = userEvent.setup();
+    renderApp('/', { repository: await seedRepository([]) });
+    await ready();
+
+    const form = await openForm(user);
+    await user.click(templateRadio(form));
+
+    expect(templateRadio(form)).toBeChecked();
+    expect(within(form).getByText(new RegExp(`已套用「${BANQUET_HOOK_TEMPLATE.title}」`))).toBeInTheDocument();
+  });
+
+  it('选中模板后项目级参数被代填，用户可直接创建', async () => {
+    const user = userEvent.setup();
+    renderApp('/', { repository: await seedRepository([]) });
+    await ready();
+
+    const form = await openForm(user);
+    await user.click(templateRadio(form));
+
+    expect(within(form).getByLabelText('项目名称')).toHaveValue(BANQUET_HOOK_TEMPLATE.project_name);
+    expect(within(form).getByLabelText('题材')).toHaveValue(BANQUET_HOOK_TEMPLATE.genre);
+    expect(within(form).getByLabelText('全局画风')).toHaveValue(BANQUET_HOOK_TEMPLATE.style_prompt);
+    expect(within(form).getByLabelText('主角形象')).toHaveValue(BANQUET_HOOK_TEMPLATE.protagonist);
+    expect(within(form).getByRole('button', { name: '创建项目' })).toBeEnabled();
+  });
+
+  it('已经填过的项目名不被模板覆盖', async () => {
+    const user = userEvent.setup();
+    renderApp('/', { repository: await seedRepository([]) });
+    await ready();
+
+    const form = await openForm(user);
+    await user.type(within(form).getByLabelText('项目名称'), '第三集·我自己的名字');
+    await user.click(templateRadio(form));
+
+    expect(within(form).getByLabelText('项目名称')).toHaveValue('第三集·我自己的名字');
+  });
+
+  it('套模板创建：落库的 5 块板已填好内容，不是空板', async () => {
+    const repository = await seedRepository([]);
+    const user = userEvent.setup();
+    renderApp('/', { repository });
+    await ready();
+
+    const form = await openForm(user);
+    await user.click(templateRadio(form));
+    await user.click(within(form).getByRole('button', { name: '创建项目' }));
+
+    expect(await screen.findByText(/已创建/)).toHaveTextContent(
+      `套用「${BANQUET_HOOK_TEMPLATE.title}」`,
+    );
+
+    const summaries = await repository.list();
+    const stored = await repository.load(summaries[0]?.id ?? '');
+
+    expect(stored?.beat_list).toHaveLength(BEAT_COUNT);
+    expect(stored?.beat_list.every((beat) => beat.status === 'filled')).toBe(true);
+    expect(stored?.beat_list.map((beat) => beat.plot_core)).toEqual(
+      BANQUET_HOOK_TEMPLATE.beat_list.map((beat) => beat.plot_core),
+    );
+
+    const texts = stored?.beat_list.flatMap((beat) => beat.frames.map((frame) => frame.text)) ?? [];
+    expect(texts).toHaveLength(TOTAL_FRAME_COUNT);
+    expect(texts.every((text) => text.trim() !== '')).toBe(true);
+  });
+
+  it('套模板不松结构锁：宫格数与衔接仍由板序锁定', async () => {
+    const repository = await seedRepository([]);
+    const user = userEvent.setup();
+    renderApp('/', { repository });
+    await ready();
+
+    const form = await openForm(user);
+    await user.click(templateRadio(form));
+    await user.click(within(form).getByRole('button', { name: '创建项目' }));
+    await screen.findByText(/已创建/);
+
+    const summaries = await repository.list();
+    const stored = await repository.load(summaries[0]?.id ?? '');
+
+    expect(stored?.beat_list.map((beat) => beat.frame_count)).toEqual([3, 3, 3, 3, 2]);
+    expect(stored?.beat_list[2]?.transition_rule).toBe('纯硬切');
+    expect(stored?.beat_list.every((beat) => beat.video_url === null)).toBe(true);
+  });
+
+  it('切回空白五板后创建，落库仍是 5 块空板', async () => {
+    const repository = await seedRepository([]);
+    const user = userEvent.setup();
+    renderApp('/', { repository });
+    await ready();
+
+    const form = await openForm(user);
+    await user.click(templateRadio(form));
+    await user.click(within(form).getByRole('radio', { name: /空白五板/ }));
+
+    // 回空白会把模板代填的参数清掉，必填项得重新填。
+    expect(within(form).getByLabelText('题材')).toHaveValue('');
+    await user.type(within(form).getByLabelText('题材'), '末世·爽剧');
+    await user.type(within(form).getByLabelText('全局画风'), '冷调赛博废土');
+    await user.type(within(form).getByLabelText('主角形象'), '短发女青年');
+    await user.click(within(form).getByRole('button', { name: '创建项目' }));
+    await screen.findByText(/已创建/);
+
+    const summaries = await repository.list();
+    const stored = await repository.load(summaries[0]?.id ?? '');
+    expect(stored?.beat_list.every((beat) => beat.status === 'empty')).toBe(true);
   });
 });
 

@@ -16,7 +16,17 @@ import {
   BEAT_DEFS,
   MAX_BEAT_DURATION_SEC,
 } from '../domain/beats';
-import { createProject, hydrateProject, type NewProjectInput } from '../domain/projects';
+import {
+  createProject,
+  hydrateProject,
+  type NewProjectInput,
+  type Project,
+} from '../domain/projects';
+import {
+  DEFAULT_TEMPLATE_ID,
+  createProjectFromTemplate,
+  type TemplateId,
+} from '../domain/templates';
 import { rebuildBeat, toStoredBeat, type StoredProject } from '../adapters/persistence';
 
 /**
@@ -76,15 +86,11 @@ export function canonBeatDurations(totalSec: number): number[] {
 }
 
 /**
- * 新建项目（PRD §7.1）：必然产生 5 块板，不存在「空项目」或「自选板数」。
- * 板序、语义、宫格数、时间位、canon 衔接由领域层锁定；时长按基准表摊到目标总时长。
+ * 领域项目 → 落库项目：补生成期字段与归档位，并把板时长摊到目标总时长。
+ *
+ * 两条新建路径（空白 / 套模板）共用这一段尾巴，避免两处各摊一次时长而漂移。
  */
-export function createEmptyProject(
-  input: NewProjectInput,
-  id: string,
-  now: string,
-): StoredProject {
-  const base = createProject(input, { id, now });
+function toStoredProject(base: Project, now: string): StoredProject {
   const durations = canonBeatDurations(base.total_duration_sec);
 
   const beats = base.beat_list.map((beat, i) => {
@@ -102,6 +108,50 @@ export function createEmptyProject(
     { ...fields, created_at: now, updated_at: now, archived: false, reused_from_id: null },
     beats,
   );
+}
+
+/**
+ * 新建项目（PRD §7.1）：必然产生 5 块板，不存在「空项目」或「自选板数」。
+ * 板序、语义、宫格数、时间位、canon 衔接由领域层锁定；时长按基准表摊到目标总时长。
+ */
+export function createEmptyProject(
+  input: NewProjectInput,
+  id: string,
+  now: string,
+): StoredProject {
+  return toStoredProject(createProject(input, { id, now }), now);
+}
+
+/**
+ * 按黄金五板模板新建项目 —— 新建的**第二条起手路径**。
+ *
+ * 与 {@link createEmptyProject} 的差别**只在板上的文案**：结构照旧由领域层锁死
+ * （5 块板、宫格数按板序、时间位与 canon 衔接不可改），这里不接受任何结构参数，
+ * 因此模板不是绕开五节拍锁的后门（`RULE-2`、AC-6.1）。
+ *
+ * 分工：板级【示例】文案（情绪 / 镜头节奏 / 剧情核心 / 节拍帧）由
+ * `domain/templates.ts` 的 {@link createProjectFromTemplate} 填好，并在那里逐板过
+ * `assertPromptClean`；项目级参数（题材 / 画幅 / 目标时长 / 画风 / 主角）一律**以用户
+ * 表单为准**——模板只给起手内容，不劫持用户已经填的东西。
+ *
+ * 落库后 5 块板的 `status` 是 `filled` 而非 `empty`：这正是本路径存在的意义，
+ * 用户拿到的是一份可以逐字改写的起手稿，而不是 5 块空板。
+ */
+export function createTemplateProject(
+  input: NewProjectInput,
+  id: string,
+  now: string,
+  templateId: TemplateId = DEFAULT_TEMPLATE_ID,
+): StoredProject {
+  const base = createProjectFromTemplate(templateId, { id, now, name: input.name });
+
+  base.genre = input.genre;
+  base.aspect_ratio = input.aspect_ratio;
+  base.total_duration_sec = input.total_duration_sec ?? CANON_TOTAL_DURATION_SEC;
+  base.style_prompt = input.style_prompt;
+  base.protagonist = input.protagonist;
+
+  return toStoredProject(base, now);
 }
 
 /** 复用时被清空的节拍字段（PRD §7.2「清空」列）。 */

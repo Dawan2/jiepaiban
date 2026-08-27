@@ -3,6 +3,10 @@
  *
  * 强制字段未填齐不可提交（校验走 `domain/projects.isNewProjectValid`）。
  * 表单里没有"板数"这一项：新建**必然**产生 5 块锁定板，不存在"空项目"或"自选板数"。
+ *
+ * 起手内容有两条路径，由「起手内容」单选决定：空白五板，或套用黄金五板样板
+ * （`domain/templates.ts`）。模板只填板上的文案，**不碰结构**——两条路径产出的
+ * 板数、宫格数、时间位、canon 衔接完全一致。默认仍是空白，套模板是显式选择。
  */
 
 import { useState } from 'react';
@@ -13,12 +17,16 @@ import {
   type NewProjectInput,
 } from '../domain/projects';
 import { BEAT_COUNT, EPISODE_DURATION_RANGE_SEC } from '../domain/beats';
+import { PROJECT_TEMPLATES, projectTemplate, type TemplateId } from '../domain/templates';
 import { CANON_TOTAL_DURATION_SEC } from '../store/projectFactory';
 
 const ASPECT_RATIOS: readonly AspectRatio[] = ['9:16', '16:9', '1:1'];
 
 /** 表单态里总时长始终有值（默认基准轴），领域类型上它是可选的。 */
 type FormInput = NewProjectInput & { total_duration_sec: number };
+
+/** 起手内容：空白五板，或某个内置模板。 */
+type Starter = 'blank' | TemplateId;
 
 const EMPTY: FormInput = {
   name: '',
@@ -30,17 +38,41 @@ const EMPTY: FormInput = {
 };
 
 interface NewProjectFormProps {
-  onSubmit(input: NewProjectInput): void;
+  onSubmit(input: NewProjectInput, templateId: TemplateId | null): void;
   onCancel(): void;
   pending?: boolean;
 }
 
 export function NewProjectForm({ onSubmit, onCancel, pending = false }: NewProjectFormProps) {
   const [input, setInput] = useState<FormInput>(EMPTY);
+  const [starter, setStarter] = useState<Starter>('blank');
   const valid = isNewProjectValid(input);
+  const template = starter === 'blank' ? null : projectTemplate(starter);
 
   const set = <K extends keyof FormInput>(key: K, value: FormInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }));
+
+  /**
+   * 切换起手内容时同步项目级参数：套模板则填成模板的取值，回空白则清空。
+   * 项目名是唯一的例外——只在用户还没填时才代填，已经输入的名字不被覆盖。
+   */
+  const chooseStarter = (next: Starter) => {
+    setStarter(next);
+    setInput((prev) => {
+      if (next === 'blank') {
+        return { ...EMPTY, name: prev.name };
+      }
+      const picked = projectTemplate(next);
+      return {
+        name: prev.name.trim() === '' ? picked.project_name : prev.name,
+        genre: picked.genre,
+        aspect_ratio: picked.aspect_ratio,
+        total_duration_sec: picked.total_duration_sec,
+        style_prompt: picked.style_prompt,
+        protagonist: picked.protagonist,
+      };
+    });
+  };
 
   return (
     <form
@@ -49,7 +81,7 @@ export function NewProjectForm({ onSubmit, onCancel, pending = false }: NewProje
       onSubmit={(event) => {
         event.preventDefault();
         if (valid && !pending) {
-          onSubmit(input);
+          onSubmit(input, starter === 'blank' ? null : starter);
         }
       }}
     >
@@ -57,6 +89,47 @@ export function NewProjectForm({ onSubmit, onCancel, pending = false }: NewProje
       <p className="panel__desc">
         创建后自动落 {BEAT_COUNT} 块锁定节拍板（B1–B4 三宫格、B5 两宫格），顺序与语义不可改。
       </p>
+
+      <fieldset className="field field--group">
+        <legend className="field__label">起手内容</legend>
+        <label className="choice">
+          <input
+            type="radio"
+            name="new-project-starter"
+            value="blank"
+            checked={starter === 'blank'}
+            onChange={() => chooseStarter('blank')}
+          />
+          <span className="choice__body">
+            <span className="choice__title">空白五板</span>
+            <span className="choice__desc">{BEAT_COUNT} 块板都留空，情绪与画面全部自己写。</span>
+          </span>
+        </label>
+
+        {PROJECT_TEMPLATES.map((item) => (
+          <label className="choice" key={item.id}>
+            <input
+              type="radio"
+              name="new-project-starter"
+              value={item.id}
+              checked={starter === item.id}
+              onChange={() => chooseStarter(item.id)}
+            />
+            <span className="choice__body">
+              <span className="choice__title">{item.title}</span>
+              <span className="choice__desc">{item.summary}</span>
+            </span>
+          </label>
+        ))}
+
+        {template !== null && (
+          <p className="field__hint" role="status">
+            已套用「{template.title}」（{template.canon_source}）：
+            {BEAT_COUNT} 块板的情绪 / 镜头节奏 / 剧情核心 / 节拍帧都已填好，创建后可逐字改写。
+            下面的项目参数也已按模板填好，可直接改。
+          </p>
+        )}
+      </fieldset>
 
       <label className="field">
         <span className="field__label">项目名称</span>

@@ -4,8 +4,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { BEAT_COUNT, BEAT_DEFS, MAX_BEAT_DURATION_SEC } from '../domain/beats';
+import { BEAT_COUNT, BEAT_DEFS, MAX_BEAT_DURATION_SEC, isBeatReady } from '../domain/beats';
 import { hydrateProject, type NewProjectInput } from '../domain/projects';
+import { assemblePrompt, assertPromptClean } from '../domain/prompt';
+import { BANQUET_HOOK_TEMPLATE, DEFAULT_TEMPLATE_ID } from '../domain/templates';
 import {
   assertProjectLocks,
   ProjectLockError,
@@ -17,6 +19,7 @@ import {
   CANON_TOTAL_DURATION_SEC,
   canonBeatDurations,
   createEmptyProject,
+  createTemplateProject,
   reuseProject,
   setArchived,
 } from './projectFactory';
@@ -186,6 +189,124 @@ describe('生成期字段（PRD §8.2）', () => {
     const project = newProject();
     expect(project.beat_list.every((beat) => beat.video_url === null)).toBe(true);
     expect(project.beat_list.every((beat) => beat.prompt_final === null)).toBe(true);
+  });
+});
+
+describe('套用黄金五板模板新建（新建的第二条起手路径）', () => {
+  const templated = (overrides: Partial<NewProjectInput> = {}): StoredProject =>
+    createTemplateProject({ ...input, ...overrides }, 'prj_t', NOW);
+
+  it('产出的结构与空白新建完全一致：5 块板、序号 1–5、宫格 3/3/3/3/2', () => {
+    const project = templated();
+    expect(project.beat_list).toHaveLength(BEAT_COUNT);
+    expect(project.beat_list.map((beat) => beat.index)).toEqual([1, 2, 3, 4, 5]);
+    expect(project.beat_list.map((beat) => beat.frame_count)).toEqual([3, 3, 3, 3, 2]);
+    expect(project.beat_list.map((beat) => beat.beat_type)).toEqual(
+      newProject().beat_list.map((beat) => beat.beat_type),
+    );
+  });
+
+  it('模板不是绕开五节拍锁的后门：产物照样过结构锁断言', () => {
+    expect(() => assertProjectLocks(templated())).not.toThrow();
+  });
+
+  it('板列表同样不接受增删改序', () => {
+    const beats = templated().beat_list;
+    expect(() => (beats as unknown as { push: (v: unknown) => number }).push({})).toThrow(TypeError);
+    expect(() => (beats as unknown as { reverse: () => unknown }).reverse()).toThrow(TypeError);
+  });
+
+  it('五块板都已填好内容，不是空板——这正是本路径的意义', () => {
+    const project = templated();
+    expect(project.beat_list.every((beat) => beat.status === 'filled')).toBe(true);
+    expect(project.beat_list.every((beat) => beat.emotion.trim() !== '')).toBe(true);
+    expect(project.beat_list.every((beat) => beat.camera_rhythm.trim() !== '')).toBe(true);
+    expect(project.beat_list.every((beat) => beat.plot_core.trim() !== '')).toBe(true);
+  });
+
+  it('每一格画面都有文案，14 个帧槽位无一为空', () => {
+    const texts = templated().beat_list.flatMap((beat) => beat.frames.map((frame) => frame.text));
+    expect(texts).toHaveLength(14);
+    expect(texts.every((text) => text.trim() !== '')).toBe(true);
+  });
+
+  it('套完即「可生成」：5 块板全部就绪，无需再补必填项', () => {
+    expect(templated().beat_list.every(isBeatReady)).toBe(true);
+  });
+
+  it('板级文案逐字取自模板，不在此处另编一套', () => {
+    const project = templated();
+    expect(project.beat_list.map((beat) => beat.plot_core)).toEqual(
+      BANQUET_HOOK_TEMPLATE.beat_list.map((beat) => beat.plot_core),
+    );
+    expect(project.beat_list.map((beat) => beat.emotion)).toEqual(
+      BANQUET_HOOK_TEMPLATE.beat_list.map((beat) => beat.emotion),
+    );
+  });
+
+  it('默认模板即 banquet-hook，省略参数与显式传入等价', () => {
+    expect(DEFAULT_TEMPLATE_ID).toBe('banquet-hook');
+    const implicit = createTemplateProject(input, 'prj_t', NOW);
+    const explicit = createTemplateProject(input, 'prj_t', NOW, 'banquet-hook');
+    expect(implicit.beat_list.map((beat) => beat.plot_core)).toEqual(
+      explicit.beat_list.map((beat) => beat.plot_core),
+    );
+  });
+
+  it('项目级参数以用户表单为准，模板不劫持已填的题材 / 画幅 / 画风 / 主角', () => {
+    const project = templated({ genre: '末世·爽剧', aspect_ratio: '1:1' });
+    expect(project.name).toBe(input.name);
+    expect(project.genre).toBe('末世·爽剧');
+    expect(project.aspect_ratio).toBe('1:1');
+    expect(project.style_prompt).toBe(input.style_prompt);
+    expect(project.protagonist).toBe(input.protagonist);
+    // 模板自己的取值没有漏进来。
+    expect(project.genre).not.toBe(BANQUET_HOOK_TEMPLATE.genre);
+  });
+
+  it('时长照样摊到目标总时长，时间位不被移动', () => {
+    const project = templated({ total_duration_sec: 70 });
+    expect(project.beat_list.reduce((sum, beat) => sum + beat.duration_sec, 0)).toBe(70);
+    expect(project.beat_list.map((beat) => [beat.time_start, beat.time_end])).toEqual(
+      BEAT_DEFS.map((def) => [def.time_start, def.time_end]),
+    );
+  });
+
+  it('默认总时长落基准表 8 / 17 / 20 / 25 / 18', () => {
+    expect(templated().beat_list.map((beat) => beat.duration_sec)).toEqual([
+      ...CANON_BEAT_DURATIONS,
+    ]);
+  });
+
+  it('衔接仍取 canon，B3 的「纯硬切」原样落库', () => {
+    const project = templated();
+    expect(project.beat_list.map((beat) => beat.transition_rule)).toEqual(
+      BEAT_DEFS.map((def) => def.transition_rule),
+    );
+    expect(project.beat_list[2]?.transition_rule).toBe('纯硬切');
+  });
+
+  it('生成期字段仍是空位：模板只填文案，不伪造成片', () => {
+    const project = templated();
+    expect(project.beat_list.every((beat) => beat.video_url === null)).toBe(true);
+    expect(project.beat_list.every((beat) => beat.prompt_final === null)).toBe(true);
+  });
+
+  it('红线：模板文案组出的 Prompt 里没有衔接 / 名称 / 备注（AC-6.4）', () => {
+    const project = templated();
+    project.beat_list.forEach((beat) => {
+      const text = assemblePrompt(project, beat);
+      expect(() => assertPromptClean(beat, text)).not.toThrow();
+      expect(text).not.toContain(beat.transition_rule);
+    });
+  });
+
+  it('落库字段齐备：created_at / archived / reused_from_id', () => {
+    const project = templated();
+    expect(project.created_at).toBe(NOW);
+    expect(project.updated_at).toBe(NOW);
+    expect(project.archived).toBe(false);
+    expect(project.reused_from_id).toBeNull();
   });
 });
 

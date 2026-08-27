@@ -13,6 +13,7 @@ import { MainNav } from '../components/MainNav';
 import { NewProjectForm } from '../components/NewProjectForm';
 import { BEAT_INDEXES } from '../domain/beats';
 import type { NewProjectInput } from '../domain/projects';
+import { projectTemplate, type TemplateId } from '../domain/templates';
 import type { ProjectSummary } from '../adapters/persistence';
 import { useProjects } from '../store/ProjectsProvider';
 
@@ -146,11 +147,15 @@ export function ProjectsPage() {
     }
   };
 
-  const handleCreate = (input: NewProjectInput) =>
+  const handleCreate = (input: NewProjectInput, templateId: TemplateId | null) =>
     void run('新建项目', async () => {
-      await createProject(input);
+      await createProject(input, templateId);
       setCreating(false);
-      setNotice(`已创建《${input.name}》，5 块节拍板已就位。`);
+      setNotice(
+        templateId === null
+          ? `已创建《${input.name}》，5 块节拍板已就位。`
+          : `已创建《${input.name}》，5 块节拍板已就位，并套用「${projectTemplate(templateId).title}」的起手文案。`,
+      );
     });
 
   const handleDelete = (summary: ProjectSummary) => {
@@ -286,7 +291,7 @@ export function ProjectsPage() {
             <p className="empty">
               {showArchived
                 ? '归档里还没有项目。'
-                : '还没有项目。点右上「新建项目」，系统会自动落 5 块锁定节拍板。'}
+                : '还没有项目。点右上「新建项目」，系统会自动落 5 块锁定节拍板；起手内容可以留空自己写，也可以直接套用黄金五板样板。'}
             </p>
           ) : (
             <ul className="cards">
