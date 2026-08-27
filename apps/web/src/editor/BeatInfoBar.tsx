@@ -7,8 +7,12 @@
  *   - 时间位：canon 规格（METH-003 §1），只读，改时长也不会移动它；
  *   - 本拍时长：可编辑，既进 Prompt 文本也作请求参数（METH-003 §2 / PRD 5.3.2）；
  *   - 画幅、参考图：项目级 / 格级参数位。
+ *
+ * 末位是**本板动作位**（`actions`）：板级生成按钮连着状态徽章、禁用原因与成片地址，
+ * 是多行内容，只能落在板体里。顶部栏是恒 56px 的单行带，放不下（W5 审计 P0）。
  */
 
+import type { ReactNode } from 'react';
 import { EMOTION_PRESETS, MAX_BEAT_DURATION_SEC } from '../domain/beats';
 import type { AspectRatio } from '../domain/projects';
 import { emotionPresetOf, type BeatDraft } from './draft';
@@ -19,6 +23,8 @@ interface BeatInfoBarProps {
   referenceImageCount: number;
   onEmotionPresetChange: (preset: string) => void;
   onDurationChange: (durationSec: number) => void;
+  /** 本板动作位：板级生成动作（含徽章 / 原因 / 成片地址）。 */
+  actions?: ReactNode;
 }
 
 const toneSelectId = 'beat-tone';
@@ -30,6 +36,7 @@ export function BeatInfoBar({
   referenceImageCount,
   onEmotionPresetChange,
   onDurationChange,
+  actions,
 }: BeatInfoBarProps) {
   return (
     <section className="infobar" aria-label="节拍信息条">
@@ -119,6 +126,13 @@ export function BeatInfoBar({
         </output>
         <span className="infobar__hint">按格序随请求发送，不入文本</span>
       </div>
+
+      {actions !== undefined && (
+        <div className="infobar__field infobar__field--action">
+          <span className="infobar__label">本板生成</span>
+          {actions}
+        </div>
+      )}
     </section>
   );
 }

@@ -3,6 +3,9 @@
  *
  * 这里只做「按钮 + 状态徽章 + 原因文案」，不碰编辑区布局、不碰宫格样式——
  * 板体与宫格的结构与 CSS 归 WK3，本文件可以被整体替换而不影响生成逻辑。
+ *
+ * 落位（W8 顶部栏布局）：`BeatGenerateAction` 是多行块，挂在信息条末位的本板动作位；
+ * 只有单行的 `GenerateEpisodeButton` 能进顶部栏那条 56px 的带子。
  */
 
 import type { BeatIndex } from '../domain/beats';

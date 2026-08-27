@@ -66,13 +66,18 @@ body {
 
 /* ── 全站骨架：顶部栏 + 左导航 + 主区（PRD 锁定） ───────────────── */
 
+/*
+ * 顶部栏行高 56px 是设计带宽，但写成 `minmax(56px, auto)`：
+ * 带子只放单行控件（见 `.layout__actions`），万一有人塞进多行内容，行会长高而不是
+ * 把内容裁到视口上方去——W5 审计的 P0 就是固定行高把板级生成动作裁成了负偏移。
+ */
 .layout {
   display: grid;
   grid-template-areas:
     'topbar topbar'
     'nav main';
   grid-template-columns: 248px minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-rows: minmax(56px, auto) minmax(0, 1fr);
   height: 100%;
 }
 
@@ -121,9 +126,14 @@ body {
   text-overflow: ellipsis;
 }
 
+/*
+ * 顶部栏动作区：全站级动作，且**只放单行控件**（保存态 / 保存 / 生成全集 / 成片 /
+ * 备份导入导出）。板级、格级的多行动作归板体，不进这里。
+ */
 .layout__actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -665,6 +675,16 @@ body {
 
 .infobar__field--param {
   background: var(--bg-elev-2);
+}
+
+/*
+ * 本板动作位：整行独占。板级生成动作是多行内容（徽章 + 按钮 + 禁用原因 + 成片地址），
+ * 挤在 148px 的字段格里会折行，所以给它整行。
+ */
+.infobar__field--action {
+  grid-column: 1 / -1;
+  border-left: none;
+  border-top: 1px solid var(--border);
 }
 
 .infobar__label {
@@ -1211,10 +1231,14 @@ body {
 
 /* ── 生成动作（W2 生成引擎） ─────────────────────────────────────── */
 
+/*
+ * 板级生成动作块。留白与分隔线归容器（信息条的动作位自带边框与内边距），
+ * 这里只管内部堆叠——块本身可以被挪到板体任意位置而不带走一圈外边距。
+ */
 .generate {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
 }
 
 .generate__row {
@@ -1251,14 +1275,14 @@ body {
 }
 
 .generate__reason {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--warn);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .generate__result {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--text-dim);
   font-size: 12px;
   word-break: break-all;

@@ -10,7 +10,7 @@
  *   - 衔接与板名不进 Prompt，面板上找不到它们的片段。
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BeatNavItem } from '../components/BeatNav';
 import { BASELINE_EPISODE_DURATION_SEC, type BeatIndex } from '../domain/beats';
 import type { Project } from '../domain/projects';
@@ -89,9 +89,16 @@ export function useBeatBoard(project: Project, options: BeatBoardOptions = {}) {
 interface BoardBodyProps {
   project: Project;
   board: ReturnType<typeof useBeatBoard>;
+  /**
+   * 当前板的动作位，渲染在信息条末位。
+   *
+   * 生成引擎的板级动作从这里进板体：它带徽章、禁用原因与成片地址，是多行内容，
+   * 顶部栏那条 56px 单行带装不下（W5 审计 P0）。本组件不认识生成引擎，只留槽。
+   */
+  beatActions?: ReactNode;
 }
 
-export function BeatBoardBody({ project, board }: BoardBodyProps) {
+export function BeatBoardBody({ project, board, beatActions }: BoardBodyProps) {
   const { drafts, setDrafts, activeIndex } = board;
 
   const position = drafts.findIndex((draft) => draft.index === activeIndex);
@@ -170,6 +177,7 @@ export function BeatBoardBody({ project, board }: BoardBodyProps) {
         onDurationChange={(durationSec) =>
           setDrafts((prev) => updateBeatFields(prev, draft.index, { duration_sec: durationSec }))
         }
+        actions={beatActions}
       />
 
       <div className="board__cols">

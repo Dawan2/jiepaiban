@@ -13,6 +13,10 @@
  * 既进防抖保存，也立刻算进生成前置校验——填完就能点生成，不必等落盘。
  * 生成成功后把 `video_url` / `prompt_final` 写回项目，刷新页面状态仍在。
  *
+ * 动作分层（W8 顶部栏布局）：顶部栏那条恒 56px 的带子只放单行控件——保存态、保存、
+ * 生成全集、成片。板级动作带徽章、禁用原因与成片地址，是多行内容，走信息条末位的
+ * 动作位（`BeatBoardBody` 的 `beatActions`），否则会被 56px 的行高裁掉（W5 审计 P0）。
+ *
  * 红线（AC-6.1 / 6.4 / 6.8）：板数恒 5 且无增删改序入口；格数由板位锁定；
  * 衔接、板名、备注绝不进入 Prompt 与生成请求体。
  */
@@ -174,9 +178,6 @@ function Editor({ project }: { readonly project: StoredProject }) {
           >
             保存
           </button>
-          {boardState !== undefined && (
-            <BeatGenerateAction controller={controller} state={boardState} />
-          )}
           <GenerateEpisodeButton controller={controller} states={states} />
           <Link to={`/p/${draft.id}/export`} className="btn btn--primary">
             成片
@@ -197,7 +198,15 @@ function Editor({ project }: { readonly project: StoredProject }) {
         </p>
       )}
 
-      <BeatBoardBody project={draft} board={board} />
+      <BeatBoardBody
+        project={draft}
+        board={board}
+        beatActions={
+          boardState === undefined ? undefined : (
+            <BeatGenerateAction controller={controller} state={boardState} />
+          )
+        }
+      />
     </AppLayout>
   );
 }
