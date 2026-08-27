@@ -5,7 +5,7 @@
  * 改的是 WK3 的宫格 / 剧情核心 / 衔接要点，落的是持久化层的 5 板结构。
  */
 
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BEAT_COUNT } from '../domain/beats';
@@ -161,6 +161,59 @@ describe('生成结果回写（PRD §8.2 video_url）', () => {
       expect(first?.video_url).toMatch(/^stub:\/\/seedance-2\.5/);
       expect(first?.prompt_final).not.toBeNull();
       expect(first?.status).toBe('generated');
+    });
+  });
+
+  it('不点保存、不等 2 秒防抖，成片地址就已经在库里', async () => {
+    const user = userEvent.setup();
+    renderApp('/p/prj_filled', { repository });
+    await ready();
+
+    await user.click(screen.getByRole('button', { name: '生成本板' }));
+
+    await waitFor(async () => {
+      const stored = await repository.load('prj_filled');
+      expect(stored?.beat_list[0]?.video_url).toMatch(/^stub:\/\/seedance-2\.5/);
+    });
+    // 生成结果不是用户改动：落库通道独立，顶部栏不该跳成「未保存」。
+    expect(saveState()).toHaveTextContent('已保存');
+  });
+
+  it('点完生成就离页（任务在卸载之后才收尾），成片地址照样落库', async () => {
+    const view = renderApp('/p/prj_filled', { repository });
+    await ready();
+
+    // 故意不 await：click 之后一个微任务都不让出去，任务还停在「生成中」就把页面卸掉。
+    // 于是这条断言只能由挂在状态机上的落库通道满足——编辑页已经没了。
+    fireEvent.click(screen.getByRole('button', { name: '生成本板' }));
+    view.unmount();
+
+    await waitFor(async () => {
+      const stored = await repository.load('prj_filled');
+      expect(stored?.beat_list[0]?.video_url).toMatch(/^stub:\/\/seedance-2\.5/);
+      expect(stored?.beat_list[0]?.prompt_final).not.toBeNull();
+      expect(stored?.beat_list[0]?.status).toBe('generated');
+    });
+  });
+
+  it('生成之后再编辑一次并保存，不会把成片地址与已生成态盖回空', async () => {
+    const user = userEvent.setup();
+    renderApp('/p/prj_filled', { repository });
+    await ready();
+
+    await user.click(screen.getByRole('button', { name: '生成本板' }));
+    await waitFor(async () => {
+      expect((await repository.load('prj_filled'))?.beat_list[0]?.video_url).not.toBeNull();
+    });
+
+    await user.type(screen.getByRole('textbox', { name: '剧情核心' }), '改一版');
+    await user.click(saveButton());
+
+    await waitFor(async () => {
+      const stored = await repository.load('prj_filled');
+      expect(stored?.beat_list[0]?.plot_core).toContain('改一版');
+      expect(stored?.beat_list[0]?.video_url).toMatch(/^stub:\/\/seedance-2\.5/);
+      expect(stored?.beat_list[0]?.status).toBe('generated');
     });
   });
 

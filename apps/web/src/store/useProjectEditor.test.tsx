@@ -42,6 +42,10 @@ function Host({
       <button type="button" onClick={() => editor.update((p) => ({ ...p, name: `${p.name}改` }))}>
         改名
       </button>
+      {/* 模拟"别的通道已经落库了"：生成结果回写走的就是这条路。 */}
+      <button type="button" onClick={() => editor.patch((p) => ({ ...p, name: `${p.name}·已落库` }))}>
+        外部落库
+      </button>
       <button type="button" onClick={() => void editor.saveNow()}>
         保存
       </button>
@@ -222,6 +226,85 @@ describe('手动保存与强制 flush', () => {
     await user.click(screen.getByRole('button', { name: '改名' }));
     await user.click(screen.getByRole('button', { name: '保存' }));
 
+    expect(save).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `patch` 收下的是**别的通道已经落库**的值（生成结果回写，
+ * 见 `store/generateResults.ts`）。草稿必须跟上，但页面不该因此显示「未保存」。
+ */
+describe('外部通道回写（patch）', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const click = async (label: string) => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: label }));
+    });
+  };
+
+  it('值进草稿，但保存态仍是已保存，也不触发写盘', async () => {
+    const save = saveSpy();
+    render(<Host source={project()} save={save} />);
+
+    await click('外部落库');
+
+    expect(screen.getByTestId('name')).toHaveTextContent('第一集·已落库');
+    expect(screen.getByTestId('state')).toHaveTextContent('已保存');
+
+    await act(async () => {
+      vi.advanceTimersByTime(DEBOUNCE * 2);
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('随后的一次用户编辑不会把回写的值盖掉', async () => {
+    const save = saveSpy();
+    render(<Host source={project()} save={save} />);
+
+    await click('外部落库');
+    await click('改名');
+    await act(async () => {
+      vi.advanceTimersByTime(DEBOUNCE);
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]?.[0]).toMatchObject({ name: '第一集·已落库改' });
+  });
+
+  it('不清掉正在等防抖的未保存态', async () => {
+    const save = saveSpy();
+    render(<Host source={project()} save={save} />);
+
+    await click('改名');
+    await click('外部落库');
+    expect(screen.getByTestId('state')).toHaveTextContent('未保存');
+
+    await act(async () => {
+      vi.advanceTimersByTime(DEBOUNCE);
+    });
+    expect(screen.getByTestId('state')).toHaveTextContent('已保存');
+    expect(save.mock.calls[0]?.[0]).toMatchObject({ name: '第一集改·已落库' });
+  });
+
+  it('卸载时不会把只经 patch 的草稿再写一次库', async () => {
+    const save = saveSpy();
+    const view = render(<Host source={project()} save={save} />);
+
+    await click('外部落库');
+    view.unmount();
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('没有项目时 patch 不做事，也不报错', async () => {
+    const save = saveSpy();
+    render(<Host source={null} save={save} />);
+
+    await click('外部落库');
+
+    expect(screen.getByTestId('name')).toHaveTextContent('—');
     expect(save).not.toHaveBeenCalled();
   });
 });
