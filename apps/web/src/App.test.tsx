@@ -68,12 +68,14 @@ describe('路由', () => {
     );
   });
 
-  it('未知项目与未知路径走兜底页', async () => {
+  it('未知项目走兜底页', async () => {
     render('/p/prj_missing');
     expect(await screen.findByRole('heading', { level: 1, name: '项目不存在' })).toBeInTheDocument();
+  });
 
+  it('未知路径走兜底页', async () => {
     render('/nope');
-    expect(screen.getByRole('heading', { level: 1, name: '页面不存在' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '页面不存在' })).toBeInTheDocument();
   });
 });
 

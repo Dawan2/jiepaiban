@@ -58,7 +58,9 @@
 - Prompt 实时组装与来源着色、快照（5.3）→ WK3
 - 生成队列与状态机（5.4）、成片播放/下载（5.5.2–5.5.4）→ 后续槽位
 - 后端、持久化、鉴权：当前项目数据为 `apps/web/src/data/demoProjects.ts` 的演示数据，接入
-  WK3 的数据/API 层后整体替换
+  数据层后整体替换
+  > 已由 W2 / WK-STORE 落地：演示数据已删除，改为本地 IndexedDB 持久化，
+  > 见 [`w2-local-store.md`](w2-local-store.md)。
 - 未新增 `docs/prd/**` 与 `docs/methodology/**` 下任何文件（属其他槽位）
 
 ## 4. 给下游槽位的接口约定
