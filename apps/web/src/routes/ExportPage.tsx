@@ -1,18 +1,23 @@
 /**
  * 成片页（路由 `/p/:id/export`，PRD 5.5）。
- * 固定 5 张段卡，按节拍顺序展示；未生成的节拍显示占位卡与「去编辑」入口。
- * 逐段下载 / 连播 / 一键拼接（V1.1 置灰）在后续槽位落地。
  *
- * 数据来自本地库：段卡的「已生成 / 未生成」读的是落库的 `video_url`，
- * 不是内存里的生成队列——刷新页面后状态仍在。
+ * 路由壳只做三件事：从本地库取项目、兜底「项目不存在」、把生成结果写回库。
+ * 页面本体在 `export/ExportView.tsx`——拆开是为了让兜底走在任何 Hook 之前，
+ * 生成控制器与项目 1:1，必须先确认项目存在。
+ *
+ * 数据来自本地库而非内存夹具：段卡的「已生成 / 未生成」以落库的 `video_url` 为准，
+ * 刷新页面后状态仍在；本页重投成功后同样把 `video_url` / `prompt_final` 落回库，
+ * 与编辑页共用 `store/generated.ts` 的那一份判据。
  */
 
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { MainNav } from '../components/MainNav';
-import { BEAT_COUNT } from '../domain/beats';
-import { hasVideo } from '../adapters/persistence';
-import { useProject } from '../store/ProjectsProvider';
+import type { StoredProject } from '../adapters/persistence';
+import { ExportView } from '../export/ExportView';
+import { pendingGeneratedStates, withGeneratedResults } from '../store/generated';
+import { useProject, useProjects } from '../store/ProjectsProvider';
+import { useProjectEditor } from '../store/useProjectEditor';
 import { ProjectMissing } from './ProjectMissing';
 
 export function ExportPage() {
@@ -31,58 +36,26 @@ export function ExportPage() {
     return <ProjectMissing id={id} />;
   }
 
+  // 生成控制器以项目为单位：换项目必须整块重建，故用 key 而非 prop 更新。
+  return <ExportBoard key={project.id} project={project} />;
+}
+
+function ExportBoard({ project }: { readonly project: StoredProject }) {
+  const { save } = useProjects();
+  // 复用编辑页那套保存引擎（防抖 + 离页强制 flush），本页只用它写生成结果。
+  const editor = useProjectEditor(project, { save });
+  const draft = editor.draft ?? project;
+
   return (
-    <AppLayout
-      title="成片"
-      subtitle={project.name}
-      nav={
-        <>
-          <MainNav
-            items={[
-              { to: `/p/${project.id}`, label: '节拍编辑', hint: '五节拍卡与 Prompt', end: true },
-              { to: `/p/${project.id}/export`, label: '成片', hint: `${BEAT_COUNT} 段卡片与下载` },
-            ]}
-          />
-          <Link to="/" className="nav__back">
-            返回项目列表
-          </Link>
-        </>
-      }
-      actions={
-        <>
-          <button type="button" className="btn" disabled title="V1.1 开放">
-            一键拼接（V1.1）
-          </button>
-          <button type="button" className="btn" disabled>
-            全部下载
-          </button>
-        </>
-      }
-    >
-      <ol className="segments">
-        {project.beat_list.map((beat) => {
-          const generated = hasVideo(beat);
-          return (
-            <li key={beat.index} className="segment">
-              <div className="segment__preview" aria-hidden="true">
-                {generated ? '已生成' : '未生成'}
-              </div>
-              <div className="segment__body">
-                <h2 className="segment__title">
-                  节拍{beat.index}· {beat.title}
-                </h2>
-                <p className="segment__meta">
-                  {beat.duration_sec} 秒 · {beat.frame_count} 宫格 · 状态：
-                  {generated ? '已生成' : '未生成'}
-                </p>
-                <Link to={`/p/${project.id}`} className="segment__action">
-                  去编辑
-                </Link>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </AppLayout>
+    <ExportView
+      project={draft}
+      onStatesChange={(states) => {
+        const pending = pendingGeneratedStates(draft, states);
+        if (pending.length === 0) {
+          return;
+        }
+        editor.update((current) => withGeneratedResults(current, pending));
+      }}
+    />
   );
 }

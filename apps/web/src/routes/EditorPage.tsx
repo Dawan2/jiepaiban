@@ -32,8 +32,8 @@ import {
   GenerateEpisodeButton,
   pickBoardState,
 } from '../generate/GenerateActions';
-import type { GenerateBoardState } from '../generate/controller';
 import { useGenerateController } from '../generate/useGenerateController';
+import { pendingGeneratedStates, withGeneratedResults } from '../store/generated';
 import { useProject, useProjects } from '../store/ProjectsProvider';
 import { SAVE_STATE_LABEL, useProjectEditor } from '../store/useProjectEditor';
 import { ProjectMissing } from './ProjectMissing';
@@ -57,20 +57,6 @@ function withDrafts(project: StoredProject, drafts: BeatDrafts): StoredProject {
     return beat;
   });
   return hydrateProject(fields, beats);
-}
-
-/** 生成结果里有、库里还没有的成片地址（生成成功后回写一次）。 */
-function pendingVideoUrls(
-  project: StoredProject,
-  states: readonly GenerateBoardState[],
-): readonly GenerateBoardState[] {
-  return states.filter((state) => {
-    if (state.video_url === null) {
-      return false;
-    }
-    const beat = project.beat_list.find((item) => item.index === state.beat_index);
-    return beat !== undefined && beat.video_url !== state.video_url;
-  });
 }
 
 export function EditorPage() {
@@ -112,27 +98,11 @@ function Editor({ project }: { readonly project: StoredProject }) {
 
   // 生成成功后把成片地址落库；只在库里那份与队列不一致时写，避免保存态反复抖动。
   useEffect(() => {
-    const pending = pendingVideoUrls(draft, states);
+    const pending = pendingGeneratedStates(draft, states);
     if (pending.length === 0) {
       return;
     }
-    editor.update((current) => {
-      const { beat_list: stored, ...fields } = current;
-      return hydrateProject(
-        fields,
-        stored.map((beat) => {
-          const state = pending.find((item) => item.beat_index === beat.index);
-          if (state === undefined) {
-            return beat;
-          }
-          const next = rebuildBeat(beat);
-          next.video_url = state.video_url;
-          next.prompt_final = state.job?.prompt_snapshot ?? next.prompt_final;
-          next.status = 'generated';
-          return next;
-        }),
-      );
-    });
+    editor.update((current) => withGeneratedResults(current, pending));
   }, [draft, states, editor]);
 
   const totalDeviation = board.totalSec - BASELINE_EPISODE_DURATION_SEC;
