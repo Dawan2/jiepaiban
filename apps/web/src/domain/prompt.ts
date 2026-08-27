@@ -34,6 +34,20 @@ export const PROMPT_EXCLUDED_BEAT_FIELDS = Object.freeze([
 
 export type PromptExcludedBeatField = (typeof PROMPT_EXCLUDED_BEAT_FIELDS)[number];
 
+/**
+ * 组装器能看到的项目视图与节拍视图。
+ *
+ * 白名单不只是「组装时少读几个字段」——它是**类型层的排除**：
+ * `title` / `transition_rule` / `note` 不在 {@link PromptBeatView} 里，
+ * 组装器根本够不着，编辑层也就无法把它们递进来（PRD R2 / AC-6.4）。
+ * `Project` 与 `Beat` 都可直接赋给这两个视图，调用方无需先做投影。
+ */
+export type PromptProjectView = Pick<Project, 'style_prompt' | 'protagonist' | 'aspect_ratio'>;
+export type PromptBeatView = Pick<
+  Beat,
+  'emotion' | 'duration_sec' | 'camera_rhythm' | 'plot_core' | 'frames'
+>;
+
 /** 片段来源标签，供编辑页「来源可辨」着色使用（PRD 5.3.3）。 */
 export type PromptSource = 'project' | 'beat' | 'frame';
 
@@ -54,7 +68,10 @@ function clean(value: string): string {
  * 拆出组装后的各片段（带来源标签），是 {@link assemblePrompt} 的唯一数据来源。
  * 空字段直接缺省，不产生占位文本。
  */
-export function buildPromptSegments(project: Project, beat: Beat): readonly PromptSegment[] {
+export function buildPromptSegments(
+  project: PromptProjectView,
+  beat: PromptBeatView,
+): readonly PromptSegment[] {
   const segments: PromptSegment[] = [
     { slot: '固定前缀', source: 'project', text: FIXED_PREFIX },
   ];
@@ -94,7 +111,7 @@ export function buildPromptSegments(project: Project, beat: Beat): readonly Prom
 }
 
 /** 组装当前节拍的最终 Prompt 全文。衔接 / 名称 / 备注永不出现。 */
-export function assemblePrompt(project: Project, beat: Beat): string {
+export function assemblePrompt(project: PromptProjectView, beat: PromptBeatView): string {
   const text = buildPromptSegments(project, beat)
     .map((segment) => segment.text)
     .join(SEPARATOR);

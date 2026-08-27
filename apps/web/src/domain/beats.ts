@@ -254,6 +254,62 @@ export function frameCountFor(index: BeatIndex): FrameCount {
   return beatDef(index).frame_count;
 }
 
+/** 板序 → 宫格数的查表形式，供 UI 直接断言板位锁。 */
+export const FRAME_COUNT_BY_BEAT_INDEX = Object.freeze(
+  Object.fromEntries(BEAT_DEFS.map((def) => [def.index, def.frame_count])) as Record<
+    BeatIndex,
+    FrameCount
+  >,
+);
+
+/** 全集宫格总数，= 3+3+3+3+2。 */
+export const TOTAL_FRAME_COUNT: number = BEAT_DEFS.reduce((sum, def) => sum + def.frame_count, 0);
+
+/**
+ * 各格的位置语义提示（METH-003 各板「节拍帧」表），左 → 右顺序锁定。
+ *
+ * 只是**填写提示**：说明这一格在叙事上承担什么，不涉及任何镜头级参数。
+ * B1 的三项与 {@link BeatDef.frame_semantics} 的 impact / reaction / env 一一对应。
+ */
+export const FRAME_ROLE_HINTS = Object.freeze({
+  1: Object.freeze(['冲击', '反应', '环境']),
+  2: Object.freeze(['对立方登场', '利害揭明', '立场对峙']),
+  3: Object.freeze(['第一层打压', '第二层打压', '压力见顶']),
+  4: Object.freeze(['转机浮现', '势能积累', '临界点']),
+  5: Object.freeze(['抛出悬念', '最高势能处切断']),
+} as Record<BeatIndex, readonly string[]>);
+
+export function frameRoleHint(index: BeatIndex, order: number): string {
+  return FRAME_ROLE_HINTS[index][order - 1] ?? '';
+}
+
+/** 节拍在整集时间轴上的时间位（秒）——canon 值，不由用户时长推算。 */
+export interface BeatTimeRange {
+  readonly start_sec: number;
+  readonly end_sec: number;
+}
+
+/**
+ * canon 时间位表（METH-003 §1「时间位」列）：0-8 / 8-25 / 25-45 / 45-70 / 70-88。
+ *
+ * 时间位是**规格**不是派生值：`time_start` / `time_end` 属于
+ * {@link LOCKED_BEAT_FIELDS}，运行时不可写。用户改 `duration_sec` 不会移动时间位，
+ * 只会让整集实际时长偏离 88s 基准轴——这个偏差由 UI 显示，不回写时间位。
+ */
+export const BEAT_TIME_RANGES: readonly BeatTimeRange[] = Object.freeze(
+  BEAT_DEFS.map((def) => Object.freeze({ start_sec: def.time_start, end_sec: def.time_end })),
+);
+
+export function beatTimeRange(index: BeatIndex): BeatTimeRange {
+  const def = beatDef(index);
+  return { start_sec: def.time_start, end_sec: def.time_end };
+}
+
+/** 各板时长之和，用于显示与 88s 基准轴的偏差。 */
+export function sumBeatDurations(beats: readonly Pick<Beat, 'duration_sec'>[]): number {
+  return beats.reduce((sum, beat) => sum + beat.duration_sec, 0);
+}
+
 function createFrames(def: BeatDef): readonly BeatFrame[] {
   const frames = Array.from({ length: def.frame_count }, (_, i) => {
     // `order` / `semantic` 只经 defineProperties 定义，不先出现在字面量里——
@@ -270,7 +326,7 @@ function createFrames(def: BeatDef): readonly BeatFrame[] {
   return Object.freeze(frames);
 }
 
-function createBeat(def: BeatDef): Beat {
+function buildBeat(def: BeatDef): Beat {
   const beat = {
     title: def.name,
     emotion: '',
@@ -302,11 +358,22 @@ function createBeat(def: BeatDef): Beat {
  * 下标赋值）都会抛 `TypeError`。**本模块不提供、也不得新增任何解锁入口。**
  */
 export function createBeatList(): BeatList {
-  return Object.freeze(BEAT_DEFS.map(createBeat)) as unknown as BeatList;
+  return Object.freeze(BEAT_DEFS.map(buildBeat)) as unknown as BeatList;
+}
+
+/**
+ * 按板序铸出单独一块锁死的板，锁与 {@link createBeatList} 完全一致。
+ *
+ * 这**不是**新增节拍的入口：板序只能取 1–5，越界抛错，
+ * 铸出的板也无法被拼进任何已存在的 `beat_list`（后者已冻结）。
+ * 存在的意义是让编辑态回落（`src/editor/draft.ts`）不必先建满 5 块再丢掉 4 块。
+ */
+export function createBeat(index: BeatIndex): Beat {
+  return buildBeat(beatDef(index));
 }
 
 /** 参与 Prompt 组装的帧，按帧序左 → 右。 */
-export function orderedFrames(beat: Beat): readonly BeatFrame[] {
+export function orderedFrames(beat: Pick<Beat, 'frames'>): readonly BeatFrame[] {
   return beat.frames;
 }
 

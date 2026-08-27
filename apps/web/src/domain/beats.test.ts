@@ -9,14 +9,21 @@ import {
   BEAT_COUNT,
   BEAT_DEFS,
   BEAT_INDEXES,
+  BEAT_TIME_RANGES,
   EPISODE_DURATION_RANGE_SEC,
+  FRAME_COUNT_BY_BEAT_INDEX,
+  FRAME_ROLE_HINTS,
   MAX_BEAT_DURATION_SEC,
+  TOTAL_FRAME_COUNT,
   beatDef,
+  beatTimeRange,
   createBeatList,
   frameCountFor,
+  frameRoleHint,
   isBeatReady,
   isDurationWithinCap,
   orderedFrames,
+  sumBeatDurations,
   validateBeatList,
   type Beat,
   type BeatIndex,
@@ -166,6 +173,69 @@ describe('createBeatList 预填', () => {
   it('orderedFrames 按左 → 右返回', () => {
     expect(orderedFrames(createBeatList()[0]).map((frame) => frame.order)).toEqual([1, 2, 3]);
     expect(orderedFrames(createBeatList()[4]).map((frame) => frame.order)).toEqual([1, 2]);
+  });
+});
+
+describe('宫格数位置锁（METH-003 §1）', () => {
+  it('B1–B4 三格、B5 两格', () => {
+    expect(BEAT_INDEXES.map((index) => frameCountFor(index))).toEqual([3, 3, 3, 3, 2]);
+    expect(FRAME_COUNT_BY_BEAT_INDEX).toEqual({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 2 });
+  });
+
+  it('新建的五板按板位铸出格数，合计 14 格', () => {
+    const list = createBeatList();
+    expect(list.map((beat) => beat.frames.length)).toEqual([3, 3, 3, 3, 2]);
+    expect(list.reduce((sum, beat) => sum + beat.frames.length, 0)).toBe(TOTAL_FRAME_COUNT);
+    expect(TOTAL_FRAME_COUNT).toBe(14);
+  });
+
+  it('每格都有位置语义提示，且提示数与格数一致', () => {
+    BEAT_INDEXES.forEach((index) => {
+      const count = frameCountFor(index);
+      expect(FRAME_ROLE_HINTS[index]).toHaveLength(count);
+      for (let order = 1; order <= count; order += 1) {
+        expect(frameRoleHint(index, order)).not.toBe('');
+      }
+    });
+  });
+
+  it('B1 的位置提示与 canon 帧语义 impact / reaction / env 对应', () => {
+    expect(FRAME_ROLE_HINTS[1]).toEqual(['冲击', '反应', '环境']);
+    expect(beatDef(1).frame_semantics).toEqual(['impact', 'reaction', 'env']);
+  });
+
+  it('不导出任何增删宫格的能力', async () => {
+    const moduleExports = Object.keys(await import('./beats'));
+    expect(
+      moduleExports.filter(
+        (name) => /(cell|grid|frame)/i.test(name) && /^(add|remove|delete)/i.test(name),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('时间位是 canon，不由时长派生', () => {
+  it('五个时间位为 0-8 / 8-25 / 25-45 / 45-70 / 70-88', () => {
+    expect(BEAT_TIME_RANGES).toEqual([
+      { start_sec: 0, end_sec: 8 },
+      { start_sec: 8, end_sec: 25 },
+      { start_sec: 25, end_sec: 45 },
+      { start_sec: 45, end_sec: 70 },
+      { start_sec: 70, end_sec: 88 },
+    ]);
+    expect(BEAT_INDEXES.map((index) => beatTimeRange(index))).toEqual([...BEAT_TIME_RANGES]);
+  });
+
+  it('改时长不会移动时间位，只让整集时长偏离 88s 基准轴', () => {
+    const list = createBeatList();
+    expect(sumBeatDurations(list)).toBe(BASELINE_EPISODE_DURATION_SEC);
+
+    list[0].duration_sec = 12;
+
+    expect(beatTimeRange(1)).toEqual({ start_sec: 0, end_sec: 8 });
+    expect(list[0].time_start).toBe(0);
+    expect(list[0].time_end).toBe(8);
+    expect(sumBeatDurations(list)).toBe(BASELINE_EPISODE_DURATION_SEC + 4);
   });
 });
 
