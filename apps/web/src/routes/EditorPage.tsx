@@ -9,9 +9,13 @@
  * | 持久化（读库、2s 防抖自动保存、离页强制落盘 `FR-2-11`） | `store/useProjectEditor` | 本地库 |
  * | 生成（板级「生成本板」与顶栏「生成全集」） | `generate/` 的控制器 | 生成引擎 |
  *
- * 编辑态是三者之间唯一的中转：宫格与字段改动经 `onDraftsChange` 一次落到落库结构上，
+ * 编辑态是**用户改动**唯一的中转：宫格与字段改动经 `onDraftsChange` 一次落到落库结构上，
  * 既进防抖保存，也立刻算进生成前置校验——填完就能点生成，不必等落盘。
- * 生成成功后把 `video_url` / `prompt_final` 写回项目，刷新页面状态仍在。
+ *
+ * 生成结果不走这条路。`video_url` / `prompt_final` / `status` 由
+ * `store/generateResults` 在任务进终态时直接写仓储：跑完就在库里，
+ * 不等 2 秒防抖，也不怕用户在生成期间离页。落库之后再把值 `patch` 进草稿
+ * （不置未保存态），免得随后的一次编辑把成片地址盖回空。
  *
  * 红线（AC-6.1 / 6.4 / 6.8）：板数恒 5 且无增删改序入口；格数由板位锁定；
  * 衔接、板名、备注绝不进入 Prompt 与生成请求体。
@@ -32,9 +36,14 @@ import {
   GenerateEpisodeButton,
   pickBoardState,
 } from '../generate/GenerateActions';
-import type { GenerateBoardState } from '../generate/controller';
+import type { GenerateJob } from '../generate/types';
 import { useGenerateController } from '../generate/useGenerateController';
 import { useProject, useProjects } from '../store/ProjectsProvider';
+import {
+  applyJobResult,
+  jobResultPending,
+  useGenerateResultWriter,
+} from '../store/generateResults';
 import { SAVE_STATE_LABEL, useProjectEditor } from '../store/useProjectEditor';
 import { ProjectMissing } from './ProjectMissing';
 
@@ -42,7 +51,10 @@ import { ProjectMissing } from './ProjectMissing';
  * 把编辑态盖回落库结构。
  *
  * 板经 `rebuildBeat` 重铸（结构锁跟着回来），可编辑字段取编辑态、生成期字段
- * （`video_url` / `prompt_final`）留库里那份——编辑不应该抹掉已生成的成片地址。
+ * （`video_url` / `prompt_final` / `status`）留库里那份——编辑不应该抹掉已生成的成片地址。
+ *
+ * `status` 也在这三个字段里：编辑态里的 `status` 是挂载那一刻的快照，编辑区从不改它，
+ * 拿它盖回去会把生成通道刚写下的 `generated` 退回 `filled`。
  */
 function withDrafts(project: StoredProject, drafts: BeatDrafts): StoredProject {
   const { beat_list: stored, ...fields } = project;
@@ -52,6 +64,7 @@ function withDrafts(project: StoredProject, drafts: BeatDrafts): StoredProject {
       return rebuildBeat(previous);
     }
     const beat = draftToBeat(draft) as StoredBeat;
+    beat.status = previous.status;
     beat.video_url = previous.video_url;
     beat.prompt_final = previous.prompt_final;
     return beat;
@@ -59,18 +72,9 @@ function withDrafts(project: StoredProject, drafts: BeatDrafts): StoredProject {
   return hydrateProject(fields, beats);
 }
 
-/** 生成结果里有、库里还没有的成片地址（生成成功后回写一次）。 */
-function pendingVideoUrls(
-  project: StoredProject,
-  states: readonly GenerateBoardState[],
-): readonly GenerateBoardState[] {
-  return states.filter((state) => {
-    if (state.video_url === null) {
-      return false;
-    }
-    const beat = project.beat_list.find((item) => item.index === state.beat_index);
-    return beat !== undefined && beat.video_url !== state.video_url;
-  });
+/** 把一个终态任务的结果并进项目；无变化时返回原项目（草稿的 mutate 契约不允许返回 null）。 */
+function mergeResult(job: GenerateJob) {
+  return (current: StoredProject) => applyJobResult(current, job) ?? current;
 }
 
 export function EditorPage() {
@@ -94,9 +98,17 @@ export function EditorPage() {
 }
 
 function Editor({ project }: { readonly project: StoredProject }) {
-  const { save } = useProjects();
+  const { save, repository } = useProjects();
   const editor = useProjectEditor(project, { save });
   const draft = editor.draft ?? project;
+
+  // 生成结果的落库通道：任务一进终态就写仓储，与编辑态的防抖完全无关。
+  // 写成功后把值对齐进草稿；写失败则退回编辑态通道（置未保存态，由防抖 / 手动保存重试）。
+  const results = useGenerateResultWriter({
+    repository,
+    onPersisted: (job) => editor.patch(mergeResult(job)),
+    onError: (_error, job) => editor.update(mergeResult(job)),
+  });
 
   const board = useBeatBoard(project, {
     onDraftsChange: (drafts) => editor.update((current) => withDrafts(current, drafts)),
@@ -107,33 +119,21 @@ function Editor({ project }: { readonly project: StoredProject }) {
     () => withDrafts(draft, board.drafts),
     [draft, board.drafts],
   );
-  const { controller, states } = useGenerateController(liveProject);
+  const { controller, states } = useGenerateController(liveProject, {
+    onSettle: results.settle,
+  });
   const boardState = pickBoardState(states, board.activeIndex);
 
-  // 生成成功后把成片地址落库；只在库里那份与队列不一致时写，避免保存态反复抖动。
+  // 补写：任务表里已有终态结果、而库里那份还没跟上。正常路径不会进这里——
+  // 结果在任务进终态的那一刻就写过了。这里管的是上次离页时写盘失败、
+  // 或本地任务表比项目更新（换机导入了旧项目）这两种残留。
   useEffect(() => {
-    const pending = pendingVideoUrls(draft, states);
-    if (pending.length === 0) {
-      return;
-    }
-    editor.update((current) => {
-      const { beat_list: stored, ...fields } = current;
-      return hydrateProject(
-        fields,
-        stored.map((beat) => {
-          const state = pending.find((item) => item.beat_index === beat.index);
-          if (state === undefined) {
-            return beat;
-          }
-          const next = rebuildBeat(beat);
-          next.video_url = state.video_url;
-          next.prompt_final = state.job?.prompt_snapshot ?? next.prompt_final;
-          next.status = 'generated';
-          return next;
-        }),
-      );
+    states.forEach((state) => {
+      if (state.job !== null && jobResultPending(draft, state.job)) {
+        void results.settle(state.job);
+      }
     });
-  }, [draft, states, editor]);
+  }, [draft, states, results]);
 
   const totalDeviation = board.totalSec - BASELINE_EPISODE_DURATION_SEC;
 

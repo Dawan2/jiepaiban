@@ -20,9 +20,11 @@ import {
 import { createGenerateQueue, type GenerateQueue } from './queue';
 import { createMemoryJobStore, type GenerateJobStore } from './store';
 import {
+  GENERATE_JOB_STATUSES,
   GENERATE_STATUS_LABEL,
   GENERATE_STATUS_TRANSITIONS,
   canTransition,
+  isTerminalStatus,
   type GenerateJob,
 } from './types';
 
@@ -31,12 +33,16 @@ interface Harness {
   readonly store: GenerateJobStore;
 }
 
-function harness(transport?: SeedanceTransport): Harness {
+function harness(
+  transport?: SeedanceTransport,
+  onSettle?: (job: GenerateJob) => void,
+): Harness {
   const store = createMemoryJobStore();
   let tick = 0;
   const queue = createGenerateQueue({
     adapter: createSeedanceAdapter(transport === undefined ? {} : { transport }),
     store,
+    ...(onSettle === undefined ? {} : { onSettle }),
     now: () => {
       tick += 1;
       return new Date(Date.UTC(2026, 7, 27, 0, 0, tick)).toISOString();
@@ -382,5 +388,91 @@ describe('持久化与订阅', () => {
     await queue.drain();
     queue.reset();
     expect(queue.jobs()).toHaveLength(0);
+  });
+});
+
+/**
+ * `onSettle` 是生成结果落库的挂点（`store/generateResults.ts`）。
+ * 它必须挂在状态机上而不是某个组件的订阅上：组件会卸载，状态机不会。
+ */
+describe('终态挂点 onSettle', () => {
+  it('终态即回调，带的是落库后的终态快照', async () => {
+    const onSettle = vi.fn<(job: GenerateJob) => void>();
+    const { queue } = harness(undefined, onSettle);
+    const { project, beat } = createBeat1Sample();
+
+    queue.enqueue(project, beat);
+    await queue.drain();
+
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    const settled = onSettle.mock.calls[0]?.[0] as GenerateJob;
+    expect(settled.status).toBe('SUCCEEDED');
+    expect(settled.beat_index).toBe(1);
+    expect(settled.video_url).toContain('stub://seedance-2.5/b1/');
+    expect(settled.prompt_snapshot).toContain('漫剧厚涂画风');
+  });
+
+  it('失败同样回调一次：失败也是要落库的结果', async () => {
+    const onSettle = vi.fn<(job: GenerateJob) => void>();
+    const { queue } = harness(
+      createScriptedTransport([{ ok: false, failure: upstreamFailure('网关超时') }]),
+      onSettle,
+    );
+    const { project, beat } = createBeat1Sample();
+
+    queue.enqueue(project, beat);
+    await queue.drain();
+
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(onSettle.mock.calls[0]?.[0].status).toBe('FAILED');
+  });
+
+  it('待生成与生成中不回调：在途状态不是结果', async () => {
+    const onSettle = vi.fn<(job: GenerateJob) => void>();
+    const { transport, settle } = deferredTransport();
+    const { queue } = harness(transport, onSettle);
+    const { project, beat } = createBeat1Sample();
+
+    queue.enqueue(project, beat);
+    expect(onSettle).not.toHaveBeenCalled();
+
+    const running = queue.runNext();
+    expect(queue.jobFor(project.id, 1)?.status).toBe('RUNNING');
+    expect(onSettle).not.toHaveBeenCalled();
+
+    settle({ ok: true, video_url: 'stub://ok.mp4' });
+    await running;
+    expect(onSettle).toHaveBeenCalledTimes(1);
+  });
+
+  it('前置校验阻断的提交不回调：没有任务，也就没有结果', () => {
+    const onSettle = vi.fn<(job: GenerateJob) => void>();
+    const { queue } = harness(undefined, onSettle);
+    const { project, beat } = createBeat1Sample();
+    beat.duration_sec = MAX_BEAT_DURATION_SEC + 1;
+
+    expect(queue.enqueue(project, beat).status).toBe('blocked');
+    expect(onSettle).not.toHaveBeenCalled();
+  });
+
+  it('整集生成逐板回调五次，板序即 B1 → B5', async () => {
+    const seen: BeatIndex[] = [];
+    const { queue } = harness(undefined, (job) => seen.push(job.beat_index));
+    const project = createFilledEpisode();
+
+    queue.enqueueEpisode(project);
+    await queue.drain();
+
+    expect(seen).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('终态判定取自迁移表，不另立一份枚举', () => {
+    expect(isTerminalStatus('SUCCEEDED')).toBe(true);
+    expect(isTerminalStatus('FAILED')).toBe(true);
+    expect(isTerminalStatus('PENDING')).toBe(false);
+    expect(isTerminalStatus('RUNNING')).toBe(false);
+    GENERATE_JOB_STATUSES.forEach((status) => {
+      expect(isTerminalStatus(status)).toBe(GENERATE_STATUS_TRANSITIONS[status].length === 0);
+    });
   });
 });

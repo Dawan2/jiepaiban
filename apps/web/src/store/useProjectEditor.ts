@@ -29,6 +29,14 @@ export interface ProjectEditor {
   readonly error: string | null;
   /** 改草稿：传入纯函数，返回新项目。改完进入 `dirty` 并重启防抖。 */
   update(mutate: (project: StoredProject) => StoredProject): void;
+  /**
+   * 收下**已经由别的通道落库**的改动（生成结果回写，见 `store/generateResults.ts`）：
+   * 只更新草稿，不置 `dirty`、不触发保存。
+   *
+   * 草稿必须跟上，否则用户随后的任意一次编辑都会把草稿里的旧值（`video_url: null`）
+   * 写回库里，把刚落库的成片地址盖掉。但它不是用户的改动，保存态不该变成「未保存」。
+   */
+  patch(mutate: (project: StoredProject) => StoredProject): void;
   /** 手动保存（顶部栏「保存」按钮）：立即写盘，不等防抖。 */
   saveNow(): Promise<void>;
 }
@@ -100,6 +108,21 @@ export function useProjectEditor(
     setSaveState('dirty');
   }, []);
 
+  const patch = useCallback((mutate: (project: StoredProject) => StoredProject) => {
+    const current = draftRef.current ?? sourceRef.current;
+    if (current === null) {
+      return;
+    }
+    const next = mutate(current);
+    if (next === current) {
+      return;
+    }
+    // 有意不动 dirtyRef 与 saveState：这份值已经在库里了。
+    // 若此刻本就是 dirty（用户正在输入），那份 dirty 也要原样留着。
+    draftRef.current = next;
+    setDraft(next);
+  }, []);
+
   // 防抖自动保存。
   useEffect(() => {
     if (saveState !== 'dirty') {
@@ -126,7 +149,7 @@ export function useProjectEditor(
   }, [flush]);
 
   // 草稿尚未同步时对外呈现仓储读到的项目，调用方无需再自己兜一层 null。
-  return { draft: draft ?? source, saveState, error, update, saveNow };
+  return { draft: draft ?? source, saveState, error, update, patch, saveNow };
 }
 
 /** 顶部栏保存态文案（`FR-2-11`：保存态可见）。 */

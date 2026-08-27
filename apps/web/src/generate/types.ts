@@ -56,6 +56,16 @@ export function isActiveStatus(status: GenerateJobStatus): boolean {
   return status === 'PENDING' || status === 'RUNNING';
 }
 
+/**
+ * 终态：任务不再流转，成功 / 失败的结果就是最终结果（重新提交产生的是新任务）。
+ *
+ * 由状态迁移表推导而非另抄一份枚举：迁移表是这件事的唯一法源。
+ * 生成结果的落库通道以此为触发点（`store/generateResults.ts`）。
+ */
+export function isTerminalStatus(status: GenerateJobStatus): boolean {
+  return GENERATE_STATUS_TRANSITIONS[status].length === 0;
+}
+
 /** 失败类目，封闭三项。 */
 export type GenerateErrorClass = 'PARAM_MISSING' | 'API_ERROR' | 'CONTENT_VIOLATION';
 
