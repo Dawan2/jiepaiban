@@ -32,6 +32,7 @@ import {
   setArchived,
   type IdGen,
 } from './projectFactory';
+import { useOptionalFrameImageStore } from './FrameImagesProvider';
 import type { NewProjectInput } from '../domain/projects';
 
 export type LoadState = 'loading' | 'ready' | 'error';
@@ -84,6 +85,9 @@ export function ProjectsProvider({
   newId = randomProjectId,
 }: ProjectsProviderProps) {
   const repository = useMemo(() => injected ?? createLocalRepository(now), [injected, now]);
+  // 参考图与项目分两个仓（图片不进项目记录），删项目时必须顺手清图片，否则留下孤儿字节。
+  // 没有 <FrameImagesProvider> 时为 null：既有测试不必为此套一层 Provider。
+  const frameImages = useOptionalFrameImageStore();
   const [summaries, setSummaries] = useState<readonly ProjectSummary[]>([]);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +152,9 @@ export function ProjectsProvider({
       },
 
       async remove(id) {
+        // 先清图片再删项目：反过来一旦图片清理失败，项目记录已经没了，
+        // 那些字节就再也没有入口能找到它们。这个顺序下失败是"整件事没做成"，用户可重试。
+        await frameImages?.removeProject(id);
         await repository.remove(id);
         await refresh();
       },
@@ -163,7 +170,7 @@ export function ProjectsProvider({
         return count;
       },
     };
-  }, [summaries, state, error, repository, refresh, now, newId]);
+  }, [summaries, state, error, repository, refresh, now, newId, frameImages]);
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

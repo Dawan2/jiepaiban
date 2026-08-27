@@ -9,6 +9,12 @@ import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from '../App';
 import { LocalRepository, MemoryDriver, type StoredProject } from '../adapters/persistence';
+import {
+  FrameImageStore,
+  MemoryFrameImageDriver,
+  type FrameImageKey,
+} from '../adapters/images';
+import { FrameImagesProvider } from '../store/FrameImagesProvider';
 import { ProjectsProvider } from '../store/ProjectsProvider';
 import { createEmptyProject, type IdGen } from '../store/projectFactory';
 import type { NewProjectInput } from '../domain/projects';
@@ -69,22 +75,43 @@ export async function seedRepository(
   return repository;
 }
 
+/* ------------------------------------------------- 节拍帧参考图（W4） */
+/* 图片字节夹具见 `./imageFixtures.ts`（`pngFile` / `textFile` 等）。 */
+
+export function memoryFrameImages(now = fixedClock(60)): FrameImageStore {
+  return new FrameImageStore(new MemoryFrameImageDriver(), now);
+}
+
+export async function seedFrameImages(
+  entries: readonly (readonly [FrameImageKey, File])[],
+  store = memoryFrameImages(),
+): Promise<FrameImageStore> {
+  for (const [key, file] of entries) {
+    await store.put(key, file);
+  }
+  return store;
+}
+
 interface RenderOptions {
   repository: LocalRepository;
   now?: () => string;
   newId?: IdGen;
+  /** 不传则给一个空的内存图片仓，页面测试无需关心图片也能跑。 */
+  frameImages?: FrameImageStore;
 }
 
-export function renderApp(path: string, { repository, now, newId }: RenderOptions) {
+export function renderApp(path: string, { repository, now, newId, frameImages }: RenderOptions) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <ProjectsProvider
-        repository={repository}
-        now={now ?? fixedClock(30)}
-        newId={newId ?? sequentialIds()}
-      >
-        <App />
-      </ProjectsProvider>
+      <FrameImagesProvider store={frameImages ?? memoryFrameImages()}>
+        <ProjectsProvider
+          repository={repository}
+          now={now ?? fixedClock(30)}
+          newId={newId ?? sequentialIds()}
+        >
+          <App />
+        </ProjectsProvider>
+      </FrameImagesProvider>
     </MemoryRouter>,
   );
 }

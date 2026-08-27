@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { BeatNav } from '../components/BeatNav';
+import { FrameImagePanel } from '../components/FrameImagePanel';
 import { BEAT_COUNT, activeCells, type BeatIndex } from '../domain/beats';
 import { useProject, useProjects } from '../store/ProjectsProvider';
 import { SAVE_STATE_LABEL, useProjectEditor } from '../store/useProjectEditor';
@@ -173,6 +174,10 @@ export function EditorPage() {
                 自由备忘，不进 Prompt
               </span>
             </div>
+
+            {/* 参考图与项目结构分两个仓：图片字节走 IndexedDB 的 frameImage* store，
+                不进项目记录，因此不参与 2s 防抖的自动保存（详见 docs/work/w4-image-store.md）。 */}
+            <FrameImagePanel projectId={draft.id} beatIndex={activeIndex} />
 
             <p className="panel__todo">
               宫格填写在 WK3 落地：只写白话画面描述，不含景别 / 机位 / 运镜等专业字段，
