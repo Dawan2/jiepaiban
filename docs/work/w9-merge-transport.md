@@ -127,7 +127,7 @@ CI 四道闸门全绿，与工作流同序执行：
 
 ```
 npm run typecheck   ✓
-npm run lint:terms  ✓  扫了 152 个文件，产品源码无禁用词（法源文档与守卫测试的 120 处引用已豁免）
+npm run lint:terms  ✓  扫了 153 个文件，产品源码无禁用词（法源文档与守卫测试的 120 处引用已豁免）
 npm test            ✓  17 node:test + 748 vitest（38 个文件）
 npm run build       ✓  97 modules，dist 328.38 kB（gzip 105.91 kB）
 ```
