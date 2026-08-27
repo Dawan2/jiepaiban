@@ -4,14 +4,18 @@
  * 控制器是给 UI 的唯一入口：WK3 换掉板体与宫格样式也不影响这里的行为契约。
  */
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { App } from '../App';
-import { demoProjects } from '../data/demoProjects';
-import { beatAt } from '../domain/projects';
-import { BEAT1_SAMPLE, createBeat1Sample, createFilledEpisode } from '../testing/goldens';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { beatAt, hydrateProject } from '../domain/projects';
+import { rebuildBeat, type LocalRepository, type StoredProject } from '../adapters/persistence';
+import {
+  makeProject,
+  renderApp,
+  seedRepository,
+  withFilledBeats,
+} from '../testing/harness';
+import { createBeat1Sample, createFilledEpisode } from '../testing/goldens';
 import { createScriptedTransport, createSeedanceAdapter, upstreamFailure } from './adapter';
 import { createGenerateController } from './controller';
 import { createGenerateQueue } from './queue';
@@ -143,53 +147,26 @@ describe('控制器视图状态', () => {
 });
 
 describe('编辑页接线', () => {
-  const project = demoProjects[0];
-  const projectId = project?.id ?? '';
-  const snapshots = project?.beat_list.map((beat) => ({
-    emotion: beat.emotion,
-    camera_rhythm: beat.camera_rhythm,
-    plot_core: beat.plot_core,
-    frames: beat.frames.map((frame) => frame.text),
-  }));
+  const projectId = 'prj_wired_1';
+  let repository: LocalRepository;
 
-  beforeEach(() => {
-    globalThis.localStorage?.clear();
-    project?.beat_list.forEach((beat) => {
-      beat.emotion = BEAT1_SAMPLE.beat.emotion;
-      beat.camera_rhythm = BEAT1_SAMPLE.beat.camera_rhythm;
-      beat.plot_core = BEAT1_SAMPLE.beat.plot_core;
-      beat.frames.forEach((frame, i) => {
-        frame.text = BEAT1_SAMPLE.beat.frames[i] ?? BEAT1_SAMPLE.beat.frames[0] ?? '';
-      });
-    });
+  /** 五块板都填齐的项目：生成前置校验通过，按钮才是可用态。 */
+  function seed(): StoredProject {
+    return withFilledBeats(makeProject(projectId));
+  }
+
+  beforeEach(async () => {
+    repository = await seedRepository([seed()]);
   });
 
-  afterEach(() => {
-    globalThis.localStorage?.clear();
-    project?.beat_list.forEach((beat, at) => {
-      const snapshot = snapshots?.[at];
-      if (snapshot === undefined) {
-        return;
-      }
-      beat.emotion = snapshot.emotion;
-      beat.camera_rhythm = snapshot.camera_rhythm;
-      beat.plot_core = snapshot.plot_core;
-      beat.frames.forEach((frame, i) => {
-        frame.text = snapshot.frames[i] ?? '';
-      });
-    });
-  });
-
-  function renderEditor() {
-    return render(
-      <MemoryRouter initialEntries={[`/p/${projectId}`]}>
-        <App />
-      </MemoryRouter>,
-    );
+  async function renderEditor() {
+    const result = renderApp(`/p/${projectId}`, { repository });
+    await screen.findByRole('list', { name: '五节拍导航' });
+    return result;
   }
 
   it('板级动作从「待生成」跑到「成功」，并显示成片地址', async () => {
-    const { container } = renderEditor();
+    const { container } = await renderEditor();
     const panel = container.querySelector('.generate');
     expect(panel).not.toBeNull();
     expect(within(panel as HTMLElement).getByText('待生成')).toBeInTheDocument();
@@ -204,20 +181,24 @@ describe('编辑页接线', () => {
   });
 
   it('槽位没填齐时按钮禁用，且 hover 出得来原因', async () => {
-    const first = project?.beat_list[0];
-    if (first !== undefined) {
-      first.plot_core = '';
-    }
-    renderEditor();
+    const { beat_list: stored, ...fields } = seed();
+    const beats = stored.map((beat) => {
+      const copy = rebuildBeat(beat);
+      if (copy.index === 1) {
+        copy.plot_core = '';
+      }
+      return copy;
+    });
+    repository = await seedRepository([hydrateProject(fields, beats)]);
+    await renderEditor();
 
     const button = screen.getByRole('button', { name: '生成本板' });
     expect(button).toBeDisabled();
     expect(button.getAttribute('title')).toContain('剧情核心');
-    await Promise.resolve();
   });
 
   it('顶栏「生成全集」可用，点一次把五块板都跑完', async () => {
-    renderEditor();
+    await renderEditor();
     const episodeButton = screen.getByRole('button', { name: '生成全集' });
     expect(episodeButton).toBeEnabled();
     expect(episodeButton.getAttribute('title')).toContain('Seedance 2.5');
@@ -229,8 +210,8 @@ describe('编辑页接线', () => {
     });
   });
 
-  it('生成动作的文案里没有禁用词，也没有增删节拍的入口', () => {
-    const { container } = renderEditor();
+  it('生成动作的文案里没有禁用词，也没有增删节拍的入口', async () => {
+    const { container } = await renderEditor();
     const text = container.textContent ?? '';
     expect(text).toContain('待生成');
     expect(text).not.toMatch(/(新增|添加|删除)节拍/);

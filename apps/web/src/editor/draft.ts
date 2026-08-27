@@ -22,7 +22,7 @@ import {
   type FrameCount,
   type FrameOrder,
 } from '../domain/beats';
-import type { Project } from '../domain/projects';
+import { hydrateProject, type Project } from '../domain/projects';
 import {
   canonTransitionFor,
   hasTransitionSeam,
@@ -204,13 +204,8 @@ export function draftToBeat(draft: BeatDraft): Beat {
  * `beat_list` 依旧以不可写属性定义、数组依旧冻结——回落一圈不会松掉五节拍锁。
  */
 export function projectWithDrafts(project: Project, drafts: readonly BeatDraft[]): Project {
-  const { beat_list: _ignored, ...rest } = project;
-  const next = { ...rest } as Project;
-  Object.defineProperty(next, 'beat_list', {
-    value: Object.freeze(drafts.map(draftToBeat)),
-    enumerable: true,
-  });
-  return next;
+  const { beat_list: _replaced, ...fields } = project;
+  return hydrateProject(fields, drafts.map(draftToBeat));
 }
 
 /** 该拍参考图键，按格序；无图的格不占位。 */

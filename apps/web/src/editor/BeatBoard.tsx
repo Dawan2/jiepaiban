@@ -10,7 +10,7 @@
  *   - 衔接与板名不进 Prompt，面板上找不到它们的片段。
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BeatNavItem } from '../components/BeatNav';
 import { BASELINE_EPISODE_DURATION_SEC, type BeatIndex } from '../domain/beats';
 import type { Project } from '../domain/projects';
@@ -26,6 +26,7 @@ import { BeatInfoBar } from './BeatInfoBar';
 import {
   createBeatDrafts,
   draftToBeat,
+  type BeatDraft,
   emotionTextFor,
   referenceImageKeys,
   updateBeatFields,
@@ -37,9 +38,37 @@ import { GridBoard } from './GridBoard';
 import { PromptPreview } from './PromptPreview';
 import { TransitionPanel } from './TransitionPanel';
 
-export function useBeatBoard(project: Project) {
-  const [drafts, setDrafts] = useState(() => createBeatDrafts(project));
+export type BeatDrafts = readonly BeatDraft[];
+
+export interface BeatBoardOptions {
+  /**
+   * 用户每次改动后回调，参数是改动后的全部 5 份编辑态。
+   *
+   * 编辑态**只在这里**流向外部：持久化槽位把它接到 `useProjectEditor.update()` 上，
+   * 于是宫格与字段编辑自动共享同一套防抖保存链路，本组件不认识仓储。
+   * 只有真实改动会触发——首次挂载的播种不回调，页面打开不会立刻变「未保存」。
+   */
+  readonly onDraftsChange?: (drafts: BeatDrafts) => void;
+}
+
+export function useBeatBoard(project: Project, options: BeatBoardOptions = {}) {
+  const [drafts, setDraftsState] = useState<BeatDrafts>(() => createBeatDrafts(project));
   const [activeIndex, setActiveIndex] = useState<BeatIndex>(1);
+
+  // 回调身份每次渲染都可能变；用 ref 持有最新的那个，setDrafts 才能保持稳定身份。
+  const notify = useRef(options.onDraftsChange);
+  notify.current = options.onDraftsChange;
+  const current = useRef(drafts);
+  current.current = drafts;
+
+  // 通知放在 setState 之外：更新函数在 StrictMode 下会被调用两次，
+  // 副作用写在里面就会连带触发两次保存。
+  const setDrafts = useCallback((update: (prev: BeatDrafts) => BeatDrafts) => {
+    const next = update(current.current);
+    current.current = next;
+    setDraftsState(next);
+    notify.current?.(next);
+  }, []);
 
   const totalSec = useMemo(
     () => drafts.reduce((sum, draft) => sum + draft.duration_sec, 0),

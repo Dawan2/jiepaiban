@@ -1,21 +1,33 @@
 /**
  * 成片页（路由 `/p/:id/export`，PRD 5.5）。
- * 固定 5 张段卡，按节拍顺序展示；未生成的节拍显示占位卡与“去编辑”入口。
+ * 固定 5 张段卡，按节拍顺序展示；未生成的节拍显示占位卡与「去编辑」入口。
  * 逐段下载 / 连播 / 一键拼接（V1.1 置灰）在后续槽位落地。
+ *
+ * 数据来自本地库：段卡的「已生成 / 未生成」读的是落库的 `video_url`，
+ * 不是内存里的生成队列——刷新页面后状态仍在。
  */
 
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { MainNav } from '../components/MainNav';
-import { findDemoProject } from '../data/demoProjects';
 import { BEAT_COUNT } from '../domain/beats';
+import { hasVideo } from '../adapters/persistence';
+import { useProject } from '../store/ProjectsProvider';
 import { ProjectMissing } from './ProjectMissing';
 
 export function ExportPage() {
   const { id = '' } = useParams<{ id: string }>();
-  const project = findDemoProject(id);
+  const { project, state } = useProject(id);
 
-  if (project === undefined) {
+  if (state === 'loading') {
+    return (
+      <AppLayout title="成片" nav={<MainNav />}>
+        <p className="empty">读取项目…</p>
+      </AppLayout>
+    );
+  }
+
+  if (project === null) {
     return <ProjectMissing id={id} />;
   }
 
@@ -48,24 +60,28 @@ export function ExportPage() {
       }
     >
       <ol className="segments">
-        {project.beat_list.map((beat) => (
-          <li key={beat.index} className="segment">
-            <div className="segment__preview" aria-hidden="true">
-              未生成
-            </div>
-            <div className="segment__body">
-              <h2 className="segment__title">
-                节拍{beat.index}· {beat.title}
-              </h2>
-              <p className="segment__meta">
-                {beat.duration_sec} 秒 · {beat.frame_count} 宫格 · 状态：未生成
-              </p>
-              <Link to={`/p/${project.id}`} className="segment__action">
-                去编辑
-              </Link>
-            </div>
-          </li>
-        ))}
+        {project.beat_list.map((beat) => {
+          const generated = hasVideo(beat);
+          return (
+            <li key={beat.index} className="segment">
+              <div className="segment__preview" aria-hidden="true">
+                {generated ? '已生成' : '未生成'}
+              </div>
+              <div className="segment__body">
+                <h2 className="segment__title">
+                  节拍{beat.index}· {beat.title}
+                </h2>
+                <p className="segment__meta">
+                  {beat.duration_sec} 秒 · {beat.frame_count} 宫格 · 状态：
+                  {generated ? '已生成' : '未生成'}
+                </p>
+                <Link to={`/p/${project.id}`} className="segment__action">
+                  去编辑
+                </Link>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </AppLayout>
   );

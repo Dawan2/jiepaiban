@@ -7,12 +7,11 @@
  *   3. 界面上不出现分场类专业词，衔接也不进 Prompt 面板（AC-6.4 / AC-6.8）。
  */
 
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
-import { App } from '../App';
-import { demoProjects } from '../data/demoProjects';
+import type { LocalRepository } from '../adapters/persistence';
+import { BASE_INPUT, makeProject, renderApp, seedRepository } from '../testing/harness';
 import {
   BEAT_COUNT,
   FRAME_COUNT_BY_BEAT_INDEX,
@@ -21,7 +20,7 @@ import {
 } from '../domain/beats';
 import { TRANSITION_CATALOG } from '../domain/transitions';
 
-const projectId = demoProjects[0]?.id ?? '';
+const projectId = 'prj_board_1';
 
 /** UI 文案与 DOM 属性都不得出现的分场类专业词（数据模型文档 §8 禁用词表）。 */
 const FORBIDDEN_TERMS = ['分镜', '故事板', '景别', '机位', '运镜'] as const;
@@ -36,12 +35,13 @@ const FORBIDDEN_ATTR_TERMS = [
   'focal_length',
 ] as const;
 
-function renderEditor() {
-  return render(
-    <MemoryRouter initialEntries={[`/p/${projectId}`]}>
-      <App />
-    </MemoryRouter>,
-  );
+let repository: LocalRepository;
+
+/** 项目从内存仓储读出来再渲染：断言跑在真实的读库路径上，不是硬编码常量上。 */
+async function renderEditor() {
+  const result = renderApp(`/p/${projectId}`, { repository });
+  await screen.findByRole('list', { name: '五节拍导航' });
+  return result;
 }
 
 function beatNav() {
@@ -65,8 +65,9 @@ function promptText() {
   return screen.getByLabelText('Prompt 全文').textContent ?? '';
 }
 
-beforeEach(() => {
-  renderEditor();
+beforeEach(async () => {
+  repository = await seedRepository([makeProject(projectId)]);
+  await renderEditor();
 });
 
 describe('左侧五板：名称锁定、板序固定（AC-6.1）', () => {
@@ -292,10 +293,9 @@ describe('Prompt 实时预览（AC-6.5 / AC-6.7）', () => {
 
   it('固定前缀在面板中可见：不存在用户看不见却发出去的注入', async () => {
     await selectBeat(1);
-    const project = demoProjects[0];
 
-    expect(promptText()).toContain(project?.style_prompt ?? '');
-    expect(promptText()).toContain(project?.protagonist ?? '');
+    expect(promptText()).toContain(BASE_INPUT.style_prompt);
+    expect(promptText()).toContain(BASE_INPUT.protagonist);
   });
 
   it('未填项以待填清单呈现，补齐后转为就绪', async () => {
